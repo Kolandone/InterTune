@@ -8,7 +8,6 @@ import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.pages.MoodAndGenres
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -20,7 +19,6 @@ class MoodAndGenresViewModel @Inject constructor() : ViewModel() {
         load()
         viewModelScope.launch {
             AetherProxyManager.state
-                .distinctUntilChanged()
                 .collect { state ->
                     if (state == AetherProxyManager.State.CONNECTED && moodAndGenres.value == null) {
                         load()

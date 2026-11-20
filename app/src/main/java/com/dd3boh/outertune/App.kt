@@ -239,7 +239,6 @@ class App : Application(), SingletonImageLoader.Factory {
         // connections and replace an IR-bound or missing visitorData with one from the tunnel's exit.
         GlobalScope.launch(Dispatchers.IO) {
             AetherProxyManager.state
-                .distinctUntilChanged()
                 .collect { aetherState ->
                     if (aetherState == AetherProxyManager.State.CONNECTED) {
                         YouTube.forgetIdleConnections()

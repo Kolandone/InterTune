@@ -1691,7 +1691,6 @@ class HomeViewModel @Inject constructor(
                 AetherProxyManager.state.value == AetherProxyManager.State.STOPPED ||
                     AetherProxyManager.state.value == AetherProxyManager.State.ERROR
             AetherProxyManager.state
-                .distinctUntilChanged()
                 .drop(1)
                 .collect { aetherState ->
                     if (aetherState == AetherProxyManager.State.STOPPED ||
