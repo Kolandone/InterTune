@@ -236,19 +236,27 @@ class App : Application(), SingletonImageLoader.Factory {
                         }
                 }
         }
-        // When Aether finishes connecting (at startup or toggled later), drop stale pooled
-        // connections and replace an IR-bound or missing visitorData with one from the tunnel's exit.
+        // When Aether finishes connecting, drop stale pooled connections, fetch visitorData if
+        // missing, and recover account info if the user signed in before Aether was ready.
         GlobalScope.launch(Dispatchers.IO) {
             AetherProxyManager.state
                 .collect { aetherState ->
                     if (aetherState == AetherProxyManager.State.CONNECTED) {
                         YouTube.forgetIdleConnections()
-                        val currentVisitor = YouTube.visitorData
-                        if (currentVisitor.isNullOrBlank() || YouTubeRegion.countryOf(currentVisitor) == "IR") {
+                        if (YouTube.visitorData.isNullOrBlank()) {
                             YouTube.visitorData().getOrNull()?.let { fresh ->
                                 YouTube.visitorData = fresh
                                 dataStore.edit { settings ->
                                     settings[VisitorDataKey] = fresh
+                                }
+                            }
+                        }
+                        if (!YouTube.cookie.isNullOrBlank() && dataStore[AccountNameKey].isNullOrBlank()) {
+                            YouTube.accountInfo().getOrNull()?.let { account ->
+                                dataStore.edit { settings ->
+                                    settings[AccountNameKey] = account.name
+                                    settings[AccountEmailKey] = account.email.orEmpty()
+                                    settings[AccountChannelHandleKey] = account.channelHandle.orEmpty()
                                 }
                             }
                         }

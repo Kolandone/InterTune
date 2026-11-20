@@ -8,8 +8,13 @@ package com.dd3boh.outertune.utils.aether
 
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
+import androidx.webkit.ProxyConfig
+import androidx.webkit.ProxyController
+import androidx.webkit.WebViewFeature
 import com.dd3boh.outertune.utils.AppProxySelector
 import com.zionhuang.innertube.YouTube
 import kotlinx.coroutines.CoroutineScope
@@ -262,6 +267,7 @@ object AetherProxyManager {
         val restore = fallbackProxy
         YouTube.proxy = restore
         AppProxySelector.dynamic.activeProxy = restore
+        clearWebViewProxy()
     }
 
     private fun stopProcess() {
@@ -326,12 +332,48 @@ object AetherProxyManager {
     }
 
     /**
-     * Apply SOCKS5 proxy dynamically to YouTube client and all application OkHttp stacks.
+     * Apply SOCKS5 proxy dynamically to YouTube client, all application OkHttp stacks,
+     * and Android WebView (via Aether's HTTP CONNECT proxy on `port + 1`).
      */
     fun applyProxyToApp(host: String = DEFAULT_HOST, port: Int = _activePort.value) {
         val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress.createUnresolved(host, port))
         YouTube.proxy = proxy
         AppProxySelector.dynamic.activeProxy = proxy
+        applyWebViewProxy(host, port + 1)
+    }
+
+    private fun applyWebViewProxy(host: String, httpPort: Int) {
+        Handler(Looper.getMainLooper()).post {
+            runCatching {
+                if (WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+                    val config = ProxyConfig.Builder()
+                        .addProxyRule("http://$host:$httpPort")
+                        .addBypassRule("localhost")
+                        .addBypassRule("127.0.0.1")
+                        .addBypassRule("[::1]")
+                        .build()
+                    ProxyController.getInstance().setProxyOverride(config, { it.run() }) {
+                        Log.i(TAG, "WebView proxy routed through http://$host:$httpPort")
+                    }
+                }
+            }.onFailure { e ->
+                Log.w(TAG, "Failed to apply WebView proxy override: ${e.message}")
+            }
+        }
+    }
+
+    private fun clearWebViewProxy() {
+        Handler(Looper.getMainLooper()).post {
+            runCatching {
+                if (WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+                    ProxyController.getInstance().clearProxyOverride({ it.run() }) {
+                        Log.i(TAG, "WebView proxy override cleared")
+                    }
+                }
+            }.onFailure { e ->
+                Log.w(TAG, "Failed to clear WebView proxy override: ${e.message}")
+            }
+        }
     }
 
     /**

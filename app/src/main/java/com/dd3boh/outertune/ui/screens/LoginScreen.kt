@@ -75,6 +75,7 @@ import com.dd3boh.outertune.constants.Unreleased
 import com.dd3boh.outertune.constants.VisitorDataKey
 import com.dd3boh.outertune.ui.component.FloatingTopBar
 import com.dd3boh.outertune.utils.WhyStopped
+import com.dd3boh.outertune.utils.aether.AetherProxyManager
 import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.rememberPreference
 import com.dd3boh.outertune.utils.reportException
@@ -183,6 +184,9 @@ fun LoginScreen(
             // before that, the account answered for the one signed in before, or for nobody, and
             // that name and address were stored.
             runCatching { YouTube.cookie = cookie }
+            if (AetherProxyManager.state.value == AetherProxyManager.State.STARTING) {
+                AetherProxyManager.awaitReady(10_000L)
+            }
             val account = YouTube.accountInfo().onFailure { reportException(it) }.getOrNull()
             if (account != null) {
                 store.edit {

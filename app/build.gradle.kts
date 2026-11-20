@@ -52,8 +52,8 @@ android {
         applicationId = "dev.skye.intertune"
         minSdk = 24
         targetSdk = 36
-        versionCode = 106
-        versionName = "0.12.11-aether.4"
+        versionCode = 107
+        versionName = "0.12.11-aether.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Obfuscated, not encrypted, and the difference matters. Anything the app can read, so
@@ -148,7 +148,7 @@ android {
             isShrinkResources = true
             isCrunchPngs = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.findByName("ot_release")
+            signingConfig = signingConfigs.findByName("ot_release") ?: signingConfigs.findByName("debug")
             // The app's own screens in a car (AutoCarService, AutoSettingsService) exist only where
             // Unreleased.AUTO_REWORK is on: a car that finds them draws the app from them, held back or not.
             manifestPlaceholders["carScreens"] = "false"

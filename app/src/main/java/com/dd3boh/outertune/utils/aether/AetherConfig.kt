@@ -66,6 +66,8 @@ data class AetherConfig(
 
     fun effectiveSocksPort(): Int = port
 
+    fun effectiveHttpPort(): Int = port + 1
+
     /**
      * Build the exact CLI argument list for `aether` v2.4.0.
      */
@@ -77,6 +79,7 @@ data class AetherConfig(
         args += binaryPath
         args += listOf("--config", File(configDir, "aether.toml").absolutePath)
         args += listOf("--bind", "${AetherProxyManager.DEFAULT_HOST}:$port")
+        args += listOf("--http-proxy", "${AetherProxyManager.DEFAULT_HOST}:${effectiveHttpPort()}")
 
         val effectiveProtocol = if (protocol in VALID_PROTOCOLS) protocol else "masque"
 

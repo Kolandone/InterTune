@@ -67,17 +67,17 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Build debug APK
-        run: ./gradlew assembleCoreDebug --stacktrace -DskipFormatKtlint
+      - name: Build release APK
+        run: ./gradlew assembleCoreRelease --stacktrace -DskipFormatKtlint
 
-      - name: Verify split APKs (integrity, signature, Aether binaries, extractNativeLibs)
+      - name: Verify split APKs (integrity, signature, Aether binary, extractNativeLibs)
         run: |
           set -euo pipefail
-          ls -lh app/build/outputs/apk/core/debug/*.apk
+          ls -lh app/build/outputs/apk/core/release/*.apk
           AAPT2=$(find /usr/local/lib/android/sdk/build-tools -name aapt2 | sort -V | tail -n 1)
           APKSIGNER=$(find /usr/local/lib/android/sdk/build-tools -name apksigner | sort -V | tail -n 1)
           for abi in arm64-v8a armeabi-v7a x86_64; do
-            APK=$(ls app/build/outputs/apk/core/debug/*-${abi}-*.apk | head -n 1)
+            APK=$(ls app/build/outputs/apk/core/release/*-${abi}-*.apk | head -n 1)
             echo "Inspecting split APK for $abi: $APK"
             ls -lh "$APK"
             unzip -t "$APK" >/dev/null
@@ -105,21 +105,21 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: InterTune-Aether-arm64-v8a
-          path: app/build/outputs/apk/core/debug/*-arm64-v8a-*.apk
+          path: app/build/outputs/apk/core/release/*-arm64-v8a-*.apk
           compression-level: 0
 
       - name: Upload armeabi-v7a APK
         uses: actions/upload-artifact@v4
         with:
           name: InterTune-Aether-armeabi-v7a
-          path: app/build/outputs/apk/core/debug/*-armeabi-v7a-*.apk
+          path: app/build/outputs/apk/core/release/*-armeabi-v7a-*.apk
           compression-level: 0
 
       - name: Upload x86_64 APK
         uses: actions/upload-artifact@v4
         with:
           name: InterTune-Aether-x86_64
-          path: app/build/outputs/apk/core/debug/*-x86_64-*.apk
+          path: app/build/outputs/apk/core/release/*-x86_64-*.apk
           compression-level: 0
 
       - name: Publish direct APK files to GitHub Release
@@ -136,9 +136,9 @@ jobs:
           fi
           echo "Publishing release $TAG..."
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" app/build/outputs/apk/core/debug/*.apk --clobber
+            gh release upload "$TAG" app/build/outputs/apk/core/release/*.apk --clobber
           else
-            gh release create "$TAG" app/build/outputs/apk/core/debug/*.apk \
+            gh release create "$TAG" app/build/outputs/apk/core/release/*.apk \
               --title "InterTune Aether $TAG" \
-              --notes "Built-in Aether v2.4.0 (MASQUE/WG/Gool/MiM) with clean InterTune icon, reduced APK size (no Tor/Psiphon bloat), and persistent signing key for in-place updates. Download the APK matching your phone architecture (arm64-v8a for most modern phones)."
+              --notes "Official Release build (minified, clean InterTune behavior & icon) with built-in Aether v2.4.0 (MASQUE/WG/Gool/MiM + WebView HTTP proxy for seamless Google login) and persistent signing key. Download the APK matching your phone architecture (arm64-v8a for most modern phones)."
           fi
