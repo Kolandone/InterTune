@@ -86,7 +86,7 @@ jobs:
           done
           AAPT2=$(find /usr/local/lib/android/sdk/build-tools -name aapt2 | sort -V | tail -n 1)
           "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml | grep -i extractNativeLibs
-          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml | grep -q "extractNativeLibs.*0xffffffff" || { echo "ERROR: extractNativeLibs is NOT true!"; exit 1; }
+          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml | grep -Eq "extractNativeLibs.*(=true|0xffffffff)" || { echo "ERROR: extractNativeLibs is NOT true!"; exit 1; }
           echo "ALL CHECKS PASSED!"
 
       - name: Upload APK
