@@ -27,6 +27,36 @@ jobs:
           git clone https://github.com/MetrolistGroup/innertubex innertubex
           git -C innertubex checkout b5f8b6f1bc2b73ee9e3f3ac95b7eaa255368864e
 
+      - name: Fetch Aether v2.4.0 native binaries (aether, lyrebird, psiphon)
+        run: |
+          set -euo pipefail
+          AETHER_VER="v2.4.0"
+          fetch_abi() {
+            local abi="$1"
+            local archive="$2"
+            local tmpdir
+            tmpdir=$(mktemp -d)
+            echo "Downloading $archive for $abi..."
+            curl -fsSL "https://github.com/CluvexStudio/Aether/releases/download/${AETHER_VER}/${archive}" -o "$tmpdir/$archive"
+            tar -xzf "$tmpdir/$archive" -C "$tmpdir"
+            mkdir -p "app/src/main/jniLibs/$abi"
+            cp -f "$tmpdir/aether" "app/src/main/jniLibs/$abi/libaether.so"
+            chmod 755 "app/src/main/jniLibs/$abi/libaether.so"
+            if [ -f "$tmpdir/pt/lyrebird" ]; then
+              cp -f "$tmpdir/pt/lyrebird" "app/src/main/jniLibs/$abi/liblyrebird.so"
+              chmod 755 "app/src/main/jniLibs/$abi/liblyrebird.so"
+            fi
+            if [ -f "$tmpdir/pt/psiphon-tunnel-core" ]; then
+              cp -f "$tmpdir/pt/psiphon-tunnel-core" "app/src/main/jniLibs/$abi/libpsiphon.so"
+              chmod 755 "app/src/main/jniLibs/$abi/libpsiphon.so"
+            fi
+            rm -rf "$tmpdir"
+          }
+          fetch_abi "arm64-v8a" "aether-android-arm64.tar.gz"
+          fetch_abi "armeabi-v7a" "aether-android-armv7.tar.gz"
+          fetch_abi "x86_64" "aether-android-x86_64.tar.gz"
+          ls -lh app/src/main/jniLibs/*/lib*.so
+
       - name: set up JDK 21
         uses: actions/setup-java@v4
         with:
@@ -42,6 +72,22 @@ jobs:
 
       - name: Build debug APK
         run: ./gradlew assembleCoreDebug --stacktrace -DskipFormatKtlint
+
+      - name: Verify APK contains Aether binaries and extractNativeLibs=true
+        run: |
+          set -euo pipefail
+          APK=$(ls app/build/outputs/apk/core/debug/*.apk | head -n 1)
+          echo "Inspecting APK: $APK"
+          unzip -l "$APK" | grep -E "lib(aether|lyrebird|psiphon)\.so"
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            unzip -l "$APK" | grep -q "lib/$abi/libaether.so" || { echo "MISSING lib/$abi/libaether.so"; exit 1; }
+            unzip -l "$APK" | grep -q "lib/$abi/liblyrebird.so" || { echo "MISSING lib/$abi/liblyrebird.so"; exit 1; }
+            unzip -l "$APK" | grep -q "lib/$abi/libpsiphon.so" || { echo "MISSING lib/$abi/libpsiphon.so"; exit 1; }
+          done
+          AAPT2=$(find /usr/local/lib/android/sdk/build-tools -name aapt2 | sort -V | tail -n 1)
+          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml | grep -i extractNativeLibs
+          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml | grep -q "extractNativeLibs.*0xffffffff" || { echo "ERROR: extractNativeLibs is NOT true!"; exit 1; }
+          echo "ALL CHECKS PASSED!"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

@@ -54,9 +54,7 @@ import com.dd3boh.outertune.constants.ProxyEnabledKey
 import com.dd3boh.outertune.constants.ProxyTypeKey
 import com.dd3boh.outertune.constants.ProxyUrlKey
 import com.dd3boh.outertune.constants.AetherProxyEnabledKey
-import com.dd3boh.outertune.constants.AetherProtocolKey
-import com.dd3boh.outertune.constants.AetherScanModeKey
-import com.dd3boh.outertune.constants.AetherPortKey
+import com.dd3boh.outertune.utils.aether.AetherConfig
 import com.dd3boh.outertune.utils.aether.AetherProxyManager
 import com.dd3boh.outertune.constants.SYSTEM_DEFAULT
 import com.dd3boh.outertune.constants.StandInsKey
@@ -154,32 +152,35 @@ class App : Application(), SingletonImageLoader.Factory {
             KuGou.useTraditionalChinese = true
         }
 
+        // Install the dynamic ProxySelector once so every OkHttpClient created across the app
+        // immediately follows Aether / manual proxy toggles at runtime without requiring a restart.
+        val dynamicProxySelector = AppProxySelector.installDynamic()
+
+        // Parse manual proxy (if configured) so Aether can restore it if disabled later.
+        val manualProxy = if (dataStore[ProxyEnabledKey] == true) {
+            ProxyAddress.parse(dataStore[ProxyUrlKey])?.let { address ->
+                runCatching { Proxy(dataStore[ProxyTypeKey].toEnum(defaultValue = Proxy.Type.HTTP), address) }
+                    .onFailure(::reportException)
+                    .getOrNull()
+            }
+        } else null
+        AetherProxyManager.setManualFallbackProxy(manualProxy)
+
         // Check internal Aether proxy first
         if (dataStore[AetherProxyEnabledKey] == true) {
-            val aetherProto = dataStore[AetherProtocolKey] ?: "masque"
-            val aetherScan = dataStore[AetherScanModeKey] ?: "turbo"
-            val aetherPort = dataStore[AetherPortKey] ?: AetherProxyManager.DEFAULT_PORT
-            AetherProxyManager.start(this, aetherProto, aetherScan, aetherPort)
-            AetherProxyManager.applyProxyToApp(port = aetherPort)
-            ProxyAtStart.setting = "AETHER SOCKS5 127.0.0.1:$aetherPort"
+            val aetherConfig = AetherConfig.fromPreferences(dataStore.current)
+            val effectivePort = aetherConfig.effectiveSocksPort()
+            AetherProxyManager.start(this, aetherConfig, forceRestart = true)
+            AetherProxyManager.applyProxyToApp(port = effectivePort)
+            ProxyAtStart.setting = "AETHER SOCKS5 127.0.0.1:$effectivePort"
         } else {
             // The proxy every client takes once, here: the settings page offers a restart while the one
             // set there differs (#68). See ProxyAtStart.
             ProxyAtStart.setting = ProxyAtStart.of(dataStore[ProxyEnabledKey], dataStore[ProxyTypeKey], dataStore[ProxyUrlKey])
             if (dataStore[ProxyEnabledKey] == true) {
-                // Read as the settings page reads it, so an address typed the way proxy apps give it
-                // works. Without one it can use, none typed included, the app starts without the proxy
-                // and says so in the listener's language: it was an English toast.
-                val proxy = ProxyAddress.parse(dataStore[ProxyUrlKey])?.let { address ->
-                    runCatching { Proxy(dataStore[ProxyTypeKey].toEnum(defaultValue = Proxy.Type.HTTP), address) }
-                        .onFailure(::reportException)
-                        .getOrNull()
-                }
-                if (proxy != null) {
-                    YouTube.proxy = proxy
-                    // And for everything else the app fetches, covers and downloads to a folder
-                    // included, which went round it (#68); the home network stays direct.
-                    ProxySelector.setDefault(AppProxySelector(proxy))
+                if (manualProxy != null) {
+                    YouTube.proxy = manualProxy
+                    dynamicProxySelector.activeProxy = manualProxy
                 } else Toaster.show(this, R.string.proxy_not_used_at_start, Toast.LENGTH_LONG)
             }
         }

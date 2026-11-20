@@ -159,7 +159,7 @@ class DownloadUtil @Inject constructor(
                         OkHttpDataSource.Factory(
                             StreamFamily.Calls(
                                 OkHttpClient.Builder()
-                                    .proxy(YouTube.proxy)
+                                    .proxySelector(com.dd3boh.outertune.utils.AppProxySelector.dynamic)
                                     .build()
                             )
                         )

@@ -62,7 +62,7 @@ object YTPlayerUtils {
     // The base of the check's client and the web client's reads. OkHttp's defaults kept an idle
     // connection five minutes, the trap a dropped connection set on 20 Oct 2026: see RouteTimes.
     private val httpClient = OkHttpClient.Builder()
-        .proxy(YouTube.proxy)
+        .proxySelector(AppProxySelector.dynamic)
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
         .connectionPool(okhttp3.ConnectionPool(4, RouteTimes.IDLE_MS, TimeUnit.MILLISECONDS))

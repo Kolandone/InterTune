@@ -375,7 +375,7 @@ class PoTokenWebView private constructor(
         private const val JS_INTERFACE = "PoTokenWebView"
 
         private val httpClient = OkHttpClient.Builder()
-            .proxy(YouTube.proxy)
+            .proxySelector(com.dd3boh.outertune.utils.AppProxySelector.dynamic)
             .build()
 
         suspend fun getNewPoTokenGenerator(context: Context): PoTokenWebView {

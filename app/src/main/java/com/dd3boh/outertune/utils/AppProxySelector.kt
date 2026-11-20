@@ -35,11 +35,68 @@ class AppProxySelector(private val proxy: Proxy) : ProxySelector() {
     /** OkHttp tells the selector when the proxy could not be reached; it then fails the call, which is the point of a proxy. */
     override fun connectFailed(uri: URI?, sa: SocketAddress?, ioe: IOException?) = Unit
 
+    /**
+     * A runtime-switchable [ProxySelector] installed once in [App.onCreate].
+     * Every OkHttpClient created across the app picks this up automatically, so enabling,
+     * disabling, or switching Aether's SOCKS5 port takes effect immediately without restarting.
+     */
+    class DynamicProxySelector(private val fallback: ProxySelector?) : ProxySelector() {
+        @Volatile
+        var activeProxy: Proxy? = null
+
+        val isActive: Boolean
+            get() = activeProxy != null
+
+        override fun select(uri: URI?): List<Proxy> {
+            val current = activeProxy
+            if (current != null) {
+                val scheme = uri?.scheme?.lowercase()
+                val host = uri?.host?.removeSurrounding("[", "]")
+                return if (scheme in PROXIED && !host.isNullOrEmpty() && !isLocal(host)) {
+                    listOf(current)
+                } else {
+                    DIRECT
+                }
+            }
+            return try {
+                fallback?.select(uri) ?: DIRECT
+            } catch (_: Exception) {
+                DIRECT
+            }
+        }
+
+        override fun connectFailed(uri: URI?, sa: SocketAddress?, ioe: IOException?) {
+            if (activeProxy == null) {
+                fallback?.connectFailed(uri, sa, ioe)
+            }
+        }
+    }
+
     companion object {
         private val PROXIED = setOf("http", "https", "ws", "wss")
         private val DIRECT = listOf(Proxy.NO_PROXY)
         private val IPV4 = Regex("""^\d{1,3}(\.\d{1,3}){3}$""")
         private val IPV6 = Regex("""^[0-9A-Fa-f:.]+(%.+)?$""")
+
+        @Volatile
+        private var installedDynamic: DynamicProxySelector? = null
+
+        /**
+         * Install the dynamic selector once as the JVM default (capturing the original system
+         * selector as fallback) and return it. Safe to call multiple times.
+         */
+        @Synchronized
+        fun installDynamic(): DynamicProxySelector {
+            installedDynamic?.let { return it }
+            val original = ProxySelector.getDefault()?.takeIf { it !is DynamicProxySelector }
+            val selector = DynamicProxySelector(original)
+            ProxySelector.setDefault(selector)
+            installedDynamic = selector
+            return selector
+        }
+
+        val dynamic: DynamicProxySelector
+            get() = installedDynamic ?: installDynamic()
 
         /**
          * Whether [host] is this phone or the home network: localhost and names ending in .local, and

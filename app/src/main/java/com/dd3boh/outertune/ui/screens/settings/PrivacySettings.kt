@@ -38,10 +38,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.dd3boh.outertune.R
-import com.dd3boh.outertune.constants.AetherProxyEnabledKey
-import com.dd3boh.outertune.constants.AetherProtocolKey
-import com.dd3boh.outertune.constants.AetherScanModeKey
-import com.dd3boh.outertune.constants.AetherPortKey
 import com.dd3boh.outertune.constants.ProxyEnabledKey
 import com.dd3boh.outertune.constants.ProxyTypeKey
 import com.dd3boh.outertune.constants.ProxyUrlKey
@@ -77,14 +73,9 @@ fun PrivacySettings(
     navController: NavController,
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
-    val context = LocalContext.current
-    val (aetherEnabled, onAetherEnabledChange) = rememberPreference(key = AetherProxyEnabledKey, defaultValue = false)
-    val (aetherProtocol, onAetherProtocolChange) = rememberPreference(key = AetherProtocolKey, defaultValue = "masque")
-    val (aetherScanMode, onAetherScanModeChange) = rememberPreference(key = AetherScanModeKey, defaultValue = "turbo")
-    val (aetherPort, onAetherPortChange) = rememberPreference(key = AetherPortKey, defaultValue = AetherProxyManager.DEFAULT_PORT)
-
     val aetherState by AetherProxyManager.state.collectAsState()
     val aetherLastError by AetherProxyManager.lastError.collectAsState()
+    val aetherActivePort by AetherProxyManager.activePort.collectAsState()
 
     val (proxyEnabled, onProxyEnabledChange) = rememberPreference(key = ProxyEnabledKey, defaultValue = false)
     val (proxyType, onProxyTypeChange) = rememberEnumPreference(key = ProxyTypeKey, defaultValue = Proxy.Type.HTTP)
@@ -144,69 +135,19 @@ fun PrivacySettings(
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Built-in Aether proxy
-                SwitchPreference(
-                    title = { Text(stringResource(R.string.aether_proxy_title)) },
-                    description = stringResource(R.string.aether_proxy_desc),
-                    icon = { Icon(Icons.Rounded.VpnLock, null) },
-                    checked = aetherEnabled,
-                    onCheckedChange = { enabled ->
-                        onAetherEnabledChange(enabled)
-                        if (enabled) {
-                            AetherProxyManager.start(context, aetherProtocol, aetherScanMode, aetherPort)
-                        } else {
-                            AetherProxyManager.stop()
-                        }
-                    }
-                )
-
-                AnimatedVisibility(aetherEnabled) {
-                    Column {
-                        val statusText = when (aetherState) {
-                            AetherProxyManager.State.CONNECTED -> stringResource(R.string.aether_status_connected, aetherPort)
-                            AetherProxyManager.State.STARTING -> stringResource(R.string.aether_status_connecting)
-                            AetherProxyManager.State.ERROR -> aetherLastError ?: "Error"
-                            AetherProxyManager.State.STOPPED -> stringResource(R.string.aether_status_stopped)
-                        }
-                        InfoLabel(
-                            text = statusText,
-                            isError = aetherState == AetherProxyManager.State.ERROR
-                        )
-
-                        ListPreference(
-                            title = { Text(stringResource(R.string.aether_protocol)) },
-                            selectedValue = aetherProtocol,
-                            values = listOf("masque", "wg", "gool"),
-                            valueText = {
-                                when (it) {
-                                    "masque" -> "MASQUE (QUIC / HTTP-3)"
-                                    "wg" -> "WireGuard (WARP)"
-                                    "gool" -> "Gool (WireGuard over MASQUE)"
-                                    else -> it
-                                }
-                            },
-                            onValueSelected = { proto ->
-                                onAetherProtocolChange(proto)
-                                if (aetherEnabled) {
-                                    AetherProxyManager.start(context, proto, aetherScanMode, aetherPort)
-                                }
-                            }
-                        )
-
-                        ListPreference(
-                            title = { Text(stringResource(R.string.aether_scan_mode)) },
-                            selectedValue = aetherScanMode,
-                            values = listOf("turbo", "balanced", "thorough", "ironclad"),
-                            valueText = { it.replaceFirstChar { char -> char.uppercase() } },
-                            onValueSelected = { mode ->
-                                onAetherScanModeChange(mode)
-                                if (aetherEnabled) {
-                                    AetherProxyManager.start(context, aetherProtocol, mode, aetherPort)
-                                }
-                            }
-                        )
-                    }
+                // Built-in Aether proxy (opens full Aether configuration screen)
+                val aetherSummary = when (aetherState) {
+                    AetherProxyManager.State.CONNECTED -> stringResource(R.string.aether_status_connected, aetherActivePort)
+                    AetherProxyManager.State.STARTING -> stringResource(R.string.aether_status_connecting)
+                    AetherProxyManager.State.ERROR -> aetherLastError ?: "Error"
+                    AetherProxyManager.State.STOPPED -> stringResource(R.string.aether_proxy_desc)
                 }
+                PreferenceEntry(
+                    title = { Text(stringResource(R.string.aether_proxy_title)) },
+                    description = aetherSummary,
+                    icon = { Icon(Icons.Rounded.VpnLock, null) },
+                    onClick = { navController.navigate("settings/aether") }
+                )
 
                 Spacer(modifier = Modifier.height(8.dp))
 

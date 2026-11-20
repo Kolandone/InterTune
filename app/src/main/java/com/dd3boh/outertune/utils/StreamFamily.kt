@@ -83,7 +83,7 @@ object StreamFamily {
      * so the player asks again instead of waiting.
      */
     fun streamClient(proxy: java.net.Proxy?): OkHttpClient = OkHttpClient.Builder()
-        .proxy(proxy)
+        .proxySelector(AppProxySelector.dynamic)
         .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
         .connectionPool(okhttp3.ConnectionPool(4, 5, java.util.concurrent.TimeUnit.SECONDS))
@@ -101,7 +101,7 @@ object StreamFamily {
             base.newBuilder().apply(keepToFamily(AddressPolicy(family), system)).build()
 
         fun clientFor(url: String): OkHttpClient {
-            if (base.proxy != null) return base
+            if (base.proxy != null || AppProxySelector.dynamic.isActive) return base
             return when (of(url)) {
                 IpFamily.V4 -> overV4
                 IpFamily.V6 -> overV6
