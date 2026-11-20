@@ -14,9 +14,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: recursive
+
+      - name: Clone submodules
+        run: |
+          git clone --depth 1 https://github.com/OuterTune/ffMetadataEx ffMetadataEx
+          git clone --depth 1 https://github.com/OuterTune/taglib taglib
+          git clone --depth 1 https://github.com/MetrolistGroup/innertubex innertubex
 
       - name: set up JDK 21
         uses: actions/setup-java@v4
