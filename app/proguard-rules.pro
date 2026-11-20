@@ -86,6 +86,11 @@
 -keep class wah.mikooomich.ffMetadataEx.** { *; }
 -keep class com.kyant.taglib.** { *; }
 
+## Keep WebView @JavascriptInterface callbacks (LoginScreen & PoTokenWebView)
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
 ## Quality of life for logs
 -keepclasseswithmembernames class com.dd3boh.outertune.playback.**
 -keepclasseswithmembernames class com.dd3boh.outertune.utils.scanners.**

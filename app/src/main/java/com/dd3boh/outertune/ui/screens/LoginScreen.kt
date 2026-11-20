@@ -283,6 +283,12 @@ fun LoginScreen(
                                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                                     if (view !== webView || !request.isForMainFrame) return false
                                     if (!isAppLink(request.url.toString())) return false
+                                    val cookie = runCatching { CookieManager.getInstance().getCookie(YOUTUBE_MUSIC) }.getOrNull()
+                                    if (cookie != null && keepsCookie(cookie, Unreleased.LOGIN_RETURNS)) {
+                                        keepSignIn(cookie)
+                                        landedOn(YOUTUBE_MUSIC, loaded = true)
+                                        return true
+                                    }
                                     if (appLinksTaken++ < 2) view.loadUrl(YOUTUBE_MUSIC)
                                     return true
                                 }
@@ -550,8 +556,12 @@ private fun isHttpsPageOn(url: String?, host: String): Boolean =
  * Whether [url] is a link for an app rather than a page: intent:// and market:// (and android-app://),
  * which a web view cannot open. See the sign-in page's shouldOverrideUrlLoading.
  */
-internal fun isAppLink(url: String?): Boolean =
-    url?.substringBefore(':', missingDelimiterValue = "")?.lowercase() in setOf("intent", "market", "android-app")
+internal fun isAppLink(url: String?): Boolean {
+    if (url == null) return false
+    val scheme = url.substringBefore(':', missingDelimiterValue = "").lowercase()
+    if (scheme in setOf("intent", "market", "android-app")) return true
+    return isHttpsPageOn(url, "play.google.com")
+}
 
 /** Whether [url] came over https, for the lock in the address bar. */
 internal fun isHttpsPage(url: String?): Boolean = httpsUrl(url) != null
