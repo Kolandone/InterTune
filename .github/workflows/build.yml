@@ -61,6 +61,21 @@ jobs:
           mkdir -p app/libs
           echo "Downloading AndroidLibXrayLite v26.11.21 (libv2ray.aar)..."
           curl -fsSL "https://github.com/patterniha/AndroidLibXrayLite/releases/download/v26.11.21/libv2ray.aar" -o "app/libs/libv2ray.aar"
+          python3 - <<'PY'
+          import zipfile, os, re
+          src = "app/libs/libv2ray.aar"
+          tmp = "app/libs/libv2ray.aar.tmp"
+          with zipfile.ZipFile(src, "r") as zin, zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED) as zout:
+              for item in zin.infolist():
+                  data = zin.read(item.filename)
+                  if item.filename == "AndroidManifest.xml":
+                      text = data.decode("utf-8")
+                      text = re.sub(r'android:minSdkVersion="\d+"', 'android:minSdkVersion="24"', text)
+                      data = text.encode("utf-8")
+                  zout.writestr(item, data)
+          os.replace(tmp, src)
+          print("Patched libv2ray.aar AndroidManifest.xml minSdkVersion -> 24")
+          PY
           ls -lh app/libs/libv2ray.aar
 
       - name: set up JDK 21

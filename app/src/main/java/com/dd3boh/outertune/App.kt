@@ -54,11 +54,13 @@ import com.dd3boh.outertune.constants.ProxyEnabledKey
 import com.dd3boh.outertune.constants.ProxyTypeKey
 import com.dd3boh.outertune.constants.ProxyUrlKey
 import com.dd3boh.outertune.constants.AetherProxyEnabledKey
+import com.dd3boh.outertune.constants.XrayAutoSelectKey
 import com.dd3boh.outertune.constants.XrayConfigInputKey
 import com.dd3boh.outertune.constants.XrayPortKey
 import com.dd3boh.outertune.constants.XrayProxyEnabledKey
 import com.dd3boh.outertune.utils.aether.AetherConfig
 import com.dd3boh.outertune.utils.aether.AetherProxyManager
+import com.dd3boh.outertune.utils.xray.XrayProfileStore
 import com.dd3boh.outertune.utils.xray.XrayProxyManager
 import com.dd3boh.outertune.constants.SYSTEM_DEFAULT
 import com.dd3boh.outertune.constants.StandInsKey
@@ -176,10 +178,20 @@ class App : Application(), SingletonImageLoader.Factory {
         // the app stuck with ECONNREFUSED.
         val xrayEnabled = dataStore[XrayProxyEnabledKey] == true
         val xrayConfig = dataStore[XrayConfigInputKey].orEmpty()
-        if (xrayEnabled && xrayConfig.isNotBlank()) {
+        if (xrayEnabled) {
             val xrayPort = dataStore[XrayPortKey] ?: XrayProxyManager.DEFAULT_PORT
-            XrayProxyManager.start(this, xrayConfig, port = xrayPort, forceRestart = true)
-            ProxyAtStart.setting = "XRAY SOCKS5 127.0.0.1:$xrayPort"
+            val autoSelect = dataStore[XrayAutoSelectKey] != false
+            XrayProfileStore.ensureLoaded(this)
+            val effectiveConfig = xrayConfig.ifBlank { XrayProfileStore.getSelectedProfile(this)?.rawConfig.orEmpty() }
+            if (effectiveConfig.isNotBlank()) {
+                XrayProxyManager.start(this, effectiveConfig, port = xrayPort, forceRestart = true)
+                ProxyAtStart.setting = "XRAY SOCKS5 127.0.0.1:$xrayPort"
+            } else if (autoSelect && XrayProfileStore.profiles.value.isNotEmpty()) {
+                GlobalScope.launch(Dispatchers.IO) {
+                    XrayProxyManager.autoSelectAndConnect(this@App, port = xrayPort)
+                }
+                ProxyAtStart.setting = "XRAY AUTO 127.0.0.1:$xrayPort"
+            }
         } else if (dataStore[AetherProxyEnabledKey] == true) {
             val aetherConfig = AetherConfig.fromPreferences(dataStore.current)
             val effectivePort = aetherConfig.effectiveSocksPort()

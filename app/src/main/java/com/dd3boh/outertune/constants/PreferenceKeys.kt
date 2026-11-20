@@ -99,6 +99,7 @@ val AetherPortKey = intPreferencesKey("aetherPort")
 val XrayProxyEnabledKey = booleanPreferencesKey("xrayProxyEnabled")
 val XrayConfigInputKey = stringPreferencesKey("xrayConfigInput")
 val XrayPortKey = intPreferencesKey("xrayPort")
+val XrayAutoSelectKey = booleanPreferencesKey("xrayAutoSelect")
 
 // sync time tracks
 // Stored name kept from when this only governed the Quick picks row, so that widening it to
