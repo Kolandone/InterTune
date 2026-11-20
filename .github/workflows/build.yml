@@ -18,7 +18,8 @@ jobs:
       - name: Clone submodules
         run: |
           git clone --depth 1 https://github.com/OuterTune/ffMetadataEx ffMetadataEx
-          git clone https://github.com/OuterTune/taglib taglib
+          git clone --no-checkout https://github.com/OuterTune/taglib taglib
+          git -C taglib fetch origin abf4cb2e421ff8ca2c97ae899f8dd915e91b5771
           git -C taglib checkout abf4cb2e421ff8ca2c97ae899f8dd915e91b5771
           git -C taglib submodule update --init --recursive
           git clone https://github.com/MetrolistGroup/innertubex innertubex
