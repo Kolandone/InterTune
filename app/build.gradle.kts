@@ -52,8 +52,8 @@ android {
         applicationId = "dev.skye.intertune"
         minSdk = 24
         targetSdk = 36
-        versionCode = 104
-        versionName = "0.12.11-aether.2"
+        versionCode = 105
+        versionName = "0.12.11-aether.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Obfuscated, not encrypted, and the difference matters. Anything the app can read, so
@@ -111,6 +111,15 @@ android {
     }
 
     signingConfigs {
+        getByName("debug") {
+            val fixedDebugKeystore = file("aether-debug.keystore")
+            if (fixedDebugKeystore.exists()) {
+                storeFile = fixedDebugKeystore
+                storePassword = "intertune_aether"
+                keyAlias = "intertune"
+                keyPassword = "intertune_aether"
+            }
+        }
         if (!keystoreProperties.isEmpty) {
             create("ot_release") {
                 storeFile = file(keystoreProperties["storeFile"] as String)

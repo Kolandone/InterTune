@@ -78,15 +78,18 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleCoreDebug --stacktrace -DskipFormatKtlint
 
-      - name: Verify split APKs contain Aether binaries and extractNativeLibs=true
+      - name: Verify split APKs (integrity, signature, Aether binaries, extractNativeLibs)
         run: |
           set -euo pipefail
           ls -lh app/build/outputs/apk/core/debug/*.apk
           AAPT2=$(find /usr/local/lib/android/sdk/build-tools -name aapt2 | sort -V | tail -n 1)
+          APKSIGNER=$(find /usr/local/lib/android/sdk/build-tools -name apksigner | sort -V | tail -n 1)
           for abi in arm64-v8a armeabi-v7a x86_64; do
             APK=$(ls app/build/outputs/apk/core/debug/*-${abi}-*.apk | head -n 1)
             echo "Inspecting split APK for $abi: $APK"
             ls -lh "$APK"
+            unzip -t "$APK" >/dev/null
+            "$APKSIGNER" verify --print-certs "$APK"
             unzip -l "$APK" | grep -E "lib/.*\.so"
             unzip -l "$APK" | grep -q "lib/$abi/libaether.so" || { echo "MISSING lib/$abi/libaether.so in $APK"; exit 1; }
             unzip -l "$APK" | grep -q "lib/$abi/liblyrebird.so" || { echo "MISSING lib/$abi/liblyrebird.so in $APK"; exit 1; }
@@ -109,26 +112,39 @@ jobs:
         with:
           name: InterTune-Aether-arm64-v8a
           path: app/build/outputs/apk/core/debug/*-arm64-v8a-*.apk
+          compression-level: 0
 
       - name: Upload armeabi-v7a APK
         uses: actions/upload-artifact@v4
         with:
           name: InterTune-Aether-armeabi-v7a
           path: app/build/outputs/apk/core/debug/*-armeabi-v7a-*.apk
+          compression-level: 0
 
       - name: Upload x86_64 APK
         uses: actions/upload-artifact@v4
         with:
           name: InterTune-Aether-x86_64
           path: app/build/outputs/apk/core/debug/*-x86_64-*.apk
+          compression-level: 0
 
-      - name: Publish GitHub Release on tag
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Publish direct APK files to GitHub Release
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          gh release create "$TAG" app/build/outputs/apk/core/debug/*.apk \
-            --title "InterTune Aether $TAG" \
-            --notes "Built-in Aether v2.4.0 censorship circumvention (arm64-v8a / armeabi-v7a / x86_64 split APKs)." \
-            || gh release upload "$TAG" app/build/outputs/apk/core/debug/*.apk --clobber
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            VER=$(grep -E 'versionName\s*=' app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+            TAG="v${VER}"
+          fi
+          echo "Publishing release $TAG..."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" app/build/outputs/apk/core/debug/*.apk --clobber
+          else
+            gh release create "$TAG" app/build/outputs/apk/core/debug/*.apk \
+              --title "InterTune Aether $TAG" \
+              --notes "Built-in Aether v2.4.0 (Gool/MASQUE/WG/MiM/Tor/Psiphon) with persistent signing key for in-place updates. Download the APK matching your phone architecture (arm64-v8a for most modern phones)."
+          fi
