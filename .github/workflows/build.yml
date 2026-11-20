@@ -22,6 +22,8 @@ jobs:
           git -C taglib fetch origin abf4cb2e421ff8ca2c97ae899f8dd915e91b5771
           git -C taglib checkout abf4cb2e421ff8ca2c97ae899f8dd915e91b5771
           git -C taglib submodule update --init --recursive
+          sed -i '/version = "3.31.6"/d' taglib/build.gradle.kts
+          sed -i '/ndkVersion = "29.0.13113456"/d' taglib/build.gradle.kts
           git clone https://github.com/MetrolistGroup/innertubex innertubex
           git -C innertubex checkout b5f8b6f1bc2b73ee9e3f3ac95b7eaa255368864e
 
