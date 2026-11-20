@@ -163,6 +163,7 @@ import com.dd3boh.outertune.constants.SleepScheduleLengthKey
 import com.dd3boh.outertune.constants.SleepScheduleStartKey
 import com.dd3boh.outertune.constants.SleepTimerDefaults
 import com.dd3boh.outertune.constants.SleepTimerFadeDurationKey
+import com.dd3boh.outertune.utils.aether.AetherProxyManager
 import com.dd3boh.outertune.constants.SleepTimerFadeKey
 import com.dd3boh.outertune.constants.ShareAudioFocusKey
 import com.dd3boh.outertune.constants.SkipSilenceKey
@@ -3148,6 +3149,9 @@ class MusicService : MediaLibraryService(),
             // The answers of this walk come after this: the developer's "Stream over SABR only" starts from one of them.
             val resolveBegan = System.currentTimeMillis()
             val played = runBlocking(Dispatchers.IO) {
+                if (AetherProxyManager.state.value == AetherProxyManager.State.STARTING) {
+                    AetherProxyManager.awaitReady(15_000L)
+                }
                 try {
                     // The developer's "The next song fetched is gone from YouTube", debug builds only: see FaultInjection.callsGone.
                     if (FaultInjection.callsGone(mediaId)) Result.failure(YTPlayerUtils.SongUnavailable("This video is not available (fault injection)"))

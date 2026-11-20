@@ -125,6 +125,7 @@ object AetherProxyManager {
         }
 
         stopProcess()
+        clearProxyToFallback()
         _lastError.value = null
         _statusDetail.value = "Launching Aether..."
         _state.value = State.STARTING
@@ -136,7 +137,6 @@ object AetherProxyManager {
 
         val args = config.buildCliArgs(
             binaryPath = binary.absolutePath,
-            nativeDir = nativeDir,
             configDir = configDir
         )
 
@@ -199,6 +199,7 @@ object AetherProxyManager {
                 appendLog(">>> Process exited with code $exitCode")
                 releaseWakeLock()
                 if (process === proc && _state.value != State.STOPPED) {
+                    clearProxyToFallback()
                     val lastLine = _logs.value.lastOrNull {
                         it.contains("error", ignoreCase = true) ||
                             it.contains("failed", ignoreCase = true) ||
@@ -210,9 +211,9 @@ object AetherProxyManager {
                 }
             }
 
-            // Health check: wait up to 180s (thorough/ironclad/Tor/Psiphon can take time)
+            // Health check: wait up to 90s for Aether SOCKS5 to open
             healthJob = scope.launch {
-                for (attempt in 1..360) {
+                for (attempt in 1..180) {
                     delay(500)
                     if (!isRunning() || process !== proc) break
                     if (isPortReachable(DEFAULT_HOST, targetPort)) {
@@ -227,13 +228,15 @@ object AetherProxyManager {
                 if (process === proc && _state.value == State.STARTING) {
                     Log.w(TAG, "Timed out waiting for Aether SOCKS5 port $targetPort")
                     appendLog(">>> Timed out waiting for port $targetPort")
-                    _lastError.value = "Connection timeout (180s) — check Logs for details"
+                    clearProxyToFallback()
+                    _lastError.value = "Connection timeout (90s) — check Logs for details"
                     _state.value = State.ERROR
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch Aether", e)
             appendLog("[ERROR] Failed to launch: ${e.localizedMessage}")
+            clearProxyToFallback()
             _lastError.value = e.localizedMessage ?: "Failed to start"
             _statusDetail.value = null
             _state.value = State.ERROR
@@ -250,11 +253,15 @@ object AetherProxyManager {
         _state.value = State.STOPPED
         _lastError.value = null
         _statusDetail.value = null
+        clearProxyToFallback()
+        appendLog(">>> Aether proxy stopped")
+        Log.i(TAG, "Aether proxy stopped")
+    }
+
+    private fun clearProxyToFallback() {
         val restore = fallbackProxy
         YouTube.proxy = restore
         AppProxySelector.dynamic.activeProxy = restore
-        appendLog(">>> Aether proxy stopped")
-        Log.i(TAG, "Aether proxy stopped")
     }
 
     private fun stopProcess() {
@@ -387,16 +394,6 @@ object AetherProxyManager {
             return nativeBin
         }
         return null
-    }
-
-    fun hasPsiphonBinary(context: Context): Boolean {
-        val f = File(context.applicationInfo.nativeLibraryDir, "libpsiphon.so")
-        return f.exists() && f.length() > 0
-    }
-
-    fun hasLyrebirdBinary(context: Context): Boolean {
-        val f = File(context.applicationInfo.nativeLibraryDir, "liblyrebird.so")
-        return f.exists() && f.length() > 0
     }
 
     private fun appendLog(line: String) {

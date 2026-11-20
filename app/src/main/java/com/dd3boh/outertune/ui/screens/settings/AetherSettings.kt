@@ -32,12 +32,10 @@ import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VpnLock
-import androidx.datastore.preferences.core.edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarScrollBehavior
@@ -54,9 +52,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.datastore.preferences.core.edit
 import androidx.navigation.NavController
 import com.dd3boh.outertune.R
-import com.dd3boh.outertune.constants.AetherChainModeKey
 import com.dd3boh.outertune.constants.AetherCustomPeerKey
 import com.dd3boh.outertune.constants.AetherDnsKey
 import com.dd3boh.outertune.constants.AetherEchDnsKey
@@ -75,15 +73,10 @@ import com.dd3boh.outertune.constants.AetherOuterPeerKey
 import com.dd3boh.outertune.constants.AetherPortKey
 import com.dd3boh.outertune.constants.AetherProtocolKey
 import com.dd3boh.outertune.constants.AetherProxyEnabledKey
-import com.dd3boh.outertune.constants.AetherPsiphonCdnSetsKey
-import com.dd3boh.outertune.constants.AetherPsiphonModeKey
-import com.dd3boh.outertune.constants.AetherPsiphonRegionKey
 import com.dd3boh.outertune.constants.AetherQuicV2Key
 import com.dd3boh.outertune.constants.AetherQuickReconnectKey
 import com.dd3boh.outertune.constants.AetherScanModeKey
 import com.dd3boh.outertune.constants.AetherTeamKey
-import com.dd3boh.outertune.constants.AetherTorBridgesModeKey
-import com.dd3boh.outertune.constants.AetherTorCustomBridgeKey
 import com.dd3boh.outertune.constants.AetherUpstreamKey
 import com.dd3boh.outertune.constants.VisitorDataKey
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
@@ -115,10 +108,10 @@ fun AetherSettings(
     val coroutineScope = rememberCoroutineScope()
 
     val (enabled, onEnabledChange) = rememberPreference(AetherProxyEnabledKey, false)
-    val (protocol, onProtocolChange) = rememberPreference(AetherProtocolKey, "gool")
+    val (savedProtocol, onProtocolChange) = rememberPreference(AetherProtocolKey, "masque")
+    val protocol = if (savedProtocol in AetherConfig.VALID_PROTOCOLS) savedProtocol else "masque"
     val (masqueTransport, onMasqueTransportChange) = rememberPreference(AetherMasqueTransportKey, "h3")
-    val (chainMode, onChainModeChange) = rememberPreference(AetherChainModeKey, "none")
-    val (scanMode, onScanModeChange) = rememberPreference(AetherScanModeKey, "balanced")
+    val (scanMode, onScanModeChange) = rememberPreference(AetherScanModeKey, "turbo")
     val (ipVersion, onIpVersionChange) = rememberPreference(AetherIpVersionKey, "v4")
     val (noize, onNoizeChange) = rememberPreference(AetherNoizeKey, "default")
     val (quickReconnect, onQuickReconnectChange) = rememberPreference(AetherQuickReconnectKey, true)
@@ -130,11 +123,6 @@ fun AetherSettings(
     val (ech, onEchChange) = rememberPreference(AetherEchKey, "off")
     val (echDns, onEchDnsChange) = rememberPreference(AetherEchDnsKey, "")
     val (exitLoc, onExitLocChange) = rememberPreference(AetherExitLocKey, "")
-    val (psiphonMode, onPsiphonModeChange) = rememberPreference(AetherPsiphonModeKey, "auto")
-    val (psiphonRegion, onPsiphonRegionChange) = rememberPreference(AetherPsiphonRegionKey, "")
-    val (psiphonCdnSets, onPsiphonCdnSetsChange) = rememberPreference(AetherPsiphonCdnSetsKey, "")
-    val (torBridgesMode, onTorBridgesModeChange) = rememberPreference(AetherTorBridgesModeKey, "auto")
-    val (torCustomBridge, onTorCustomBridgeChange) = rememberPreference(AetherTorCustomBridgeKey, "")
     val (customPeer, onCustomPeerChange) = rememberPreference(AetherCustomPeerKey, "")
     val (outerPeer, onOuterPeerChange) = rememberPreference(AetherOuterPeerKey, "")
     val (innerPeer, onInnerPeerChange) = rememberPreference(AetherInnerPeerKey, "")
@@ -147,7 +135,6 @@ fun AetherSettings(
     val currentConfig = AetherConfig(
         protocol = protocol,
         masqueTransport = masqueTransport,
-        chainMode = chainMode,
         scanMode = scanMode,
         ipVersion = ipVersion,
         noize = noize,
@@ -160,11 +147,6 @@ fun AetherSettings(
         ech = ech,
         echDns = echDns,
         exitLoc = exitLoc,
-        psiphonMode = psiphonMode,
-        psiphonRegion = psiphonRegion,
-        psiphonCdnSets = psiphonCdnSets,
-        torBridgesMode = torBridgesMode,
-        torCustomBridge = torCustomBridge,
         customPeer = customPeer,
         outerPeer = outerPeer,
         innerPeer = innerPeer,
@@ -187,7 +169,6 @@ fun AetherSettings(
     val activePort by AetherProxyManager.activePort.collectAsState()
     val logs by AetherProxyManager.logs.collectAsState()
 
-    val irWarningText = stringResource(R.string.aether_ir_warning)
     val refreshFailedText = stringResource(R.string.aether_refresh_yt_failed)
     var showLogsDialog by remember { mutableStateOf(false) }
     var testResultText by remember { mutableStateOf<String?>(null) }
@@ -197,34 +178,25 @@ fun AetherSettings(
     fun applyPreset(
         pProtocol: String,
         pTransport: String = "h3",
-        pChain: String = "none",
-        pScan: String = "balanced",
+        pScan: String = "turbo",
         pNoize: String = "default",
         pFragment: Boolean = false,
         pExitLoc: String = "",
-        pPsiphonMode: String = psiphonMode,
-        pPsiphonRegion: String = psiphonRegion,
     ) {
         onProtocolChange(pProtocol)
         onMasqueTransportChange(pTransport)
-        onChainModeChange(pChain)
         onScanModeChange(pScan)
         onNoizeChange(pNoize)
         onFragmentChange(pFragment)
         onExitLocChange(pExitLoc)
-        onPsiphonModeChange(pPsiphonMode)
-        onPsiphonRegionChange(pPsiphonRegion)
         testResultText = null
         val updated = currentConfig.copy(
             protocol = pProtocol,
             masqueTransport = pTransport,
-            chainMode = pChain,
             scanMode = pScan,
             noize = pNoize,
             fragment = pFragment,
             exitLoc = pExitLoc,
-            psiphonMode = pPsiphonMode,
-            psiphonRegion = pPsiphonRegion,
         )
         Toast.makeText(context, R.string.aether_preset_applied, Toast.LENGTH_SHORT).show()
         if (enabled) {
@@ -313,7 +285,7 @@ fun AetherSettings(
             testResultText?.let { result ->
                 InfoLabel(
                     text = result,
-                    isError = result.startsWith("Error") || result.startsWith("Failed") || result.contains("⚠")
+                    isError = result.startsWith("Error") || result.startsWith("Failed")
                 )
             }
 
@@ -342,8 +314,7 @@ fun AetherSettings(
                                 val res = AetherProxyManager.testConnection(activePort)
                                 testResultText = res.fold(
                                     onSuccess = { r ->
-                                        val base = "OK • IP: ${r.ip} • Country: ${r.country} • WARP: ${r.warp} • ${r.latencyMs} ms"
-                                        if (r.country.equals("IR", ignoreCase = true)) "$base\n$irWarningText" else base
+                                        "OK • IP: ${r.ip} • Country: ${r.country} • WARP: ${r.warp} • ${r.latencyMs} ms"
                                     },
                                     onFailure = { e ->
                                         "Failed: ${e.localizedMessage ?: e.javaClass.simpleName}"
@@ -399,22 +370,21 @@ fun AetherSettings(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 1.5 Quick Presets
+        // 1.5 Quick Presets (Aether native only)
         PreferenceGroupTitle(title = stringResource(R.string.aether_grp_presets))
         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
             PreferenceEntry(
-                title = { Text(stringResource(R.string.aether_preset_ytm_title)) },
-                description = stringResource(R.string.aether_preset_ytm_desc),
-                icon = { Icon(Icons.Rounded.AutoAwesome, null) },
+                title = { Text(stringResource(R.string.aether_preset_fast_title)) },
+                description = stringResource(R.string.aether_preset_fast_desc),
+                icon = { Icon(Icons.Rounded.Speed, null) },
                 onClick = {
                     applyPreset(
-                        pProtocol = "gool",
+                        pProtocol = "masque",
                         pTransport = "h3",
-                        pChain = "none",
-                        pScan = "balanced",
+                        pScan = "turbo",
                         pNoize = "default",
                         pFragment = false,
-                        pExitLoc = "!IR",
+                        pExitLoc = "",
                     )
                 }
             )
@@ -424,41 +394,26 @@ fun AetherSettings(
                 icon = { Icon(Icons.Rounded.Security, null) },
                 onClick = {
                     applyPreset(
-                        pProtocol = "gool",
+                        pProtocol = "masque",
                         pTransport = "h2",
-                        pChain = "none",
                         pScan = "balanced",
                         pNoize = "gfw",
                         pFragment = true,
-                        pExitLoc = "!IR",
-                    )
-                }
-            )
-            PreferenceEntry(
-                title = { Text(stringResource(R.string.aether_preset_fast_title)) },
-                description = stringResource(R.string.aether_preset_fast_desc),
-                icon = { Icon(Icons.Rounded.Speed, null) },
-                onClick = {
-                    applyPreset(
-                        pProtocol = "masque",
-                        pTransport = "h3",
-                        pChain = "none",
-                        pScan = "turbo",
-                        pNoize = "default",
-                        pFragment = false,
                         pExitLoc = "",
                     )
                 }
             )
             PreferenceEntry(
-                title = { Text(stringResource(R.string.aether_preset_psiphon_title)) },
-                description = stringResource(R.string.aether_preset_psiphon_desc),
-                icon = { Icon(Icons.Rounded.Public, null) },
+                title = { Text(stringResource(R.string.aether_preset_ytm_title)) },
+                description = stringResource(R.string.aether_preset_ytm_desc),
+                icon = { Icon(Icons.Rounded.AutoAwesome, null) },
                 onClick = {
                     applyPreset(
-                        pProtocol = "psiphon-only",
-                        pPsiphonMode = "cdn",
-                        pPsiphonRegion = "DE",
+                        pProtocol = "gool",
+                        pTransport = "h3",
+                        pScan = "balanced",
+                        pNoize = "default",
+                        pFragment = false,
                         pExitLoc = "",
                     )
                 }
@@ -474,7 +429,7 @@ fun AetherSettings(
                 title = { Text(stringResource(R.string.aether_protocol)) },
                 icon = { Icon(Icons.Rounded.Public, null) },
                 selectedValue = protocol,
-                values = listOf("masque", "wg", "gool", "gool-classic", "mim", "tor-only", "psiphon-only"),
+                values = listOf("masque", "wg", "gool", "gool-classic", "mim"),
                 valueText = {
                     when (it) {
                         "masque" -> "MASQUE (HTTP/3 QUIC / HTTP/2)"
@@ -482,8 +437,6 @@ fun AetherSettings(
                         "gool" -> "Gool (WireGuard over MASQUE)"
                         "gool-classic" -> "Gool Classic (WARP-in-WARP)"
                         "mim" -> "MiM (MASQUE-in-MASQUE)"
-                        "tor-only" -> "Tor Only (Direct / Bridges)"
-                        "psiphon-only" -> "Psiphon Only (Direct / CDN)"
                         else -> it
                     }
                 },
@@ -512,39 +465,6 @@ fun AetherSettings(
                 )
             }
 
-            AnimatedVisibility(!currentConfig.isStandaloneCarrier) {
-                Column {
-                    ListPreference(
-                        title = { Text(stringResource(R.string.aether_chain_mode)) },
-                        selectedValue = chainMode,
-                        values = listOf("none", "tor", "tor-reverse", "psiphon", "psiphon-reverse"),
-                        valueText = {
-                            when (it) {
-                                "none" -> "Direct (No extra carrier)"
-                                "tor" -> "WARP → Tor (--tor)"
-                                "tor-reverse" -> "Tor → WARP (--tor-reverse, H2)"
-                                "psiphon" -> "WARP → Psiphon (--psiphon)"
-                                "psiphon-reverse" -> "Psiphon → WARP (--psiphon-reverse, H2)"
-                                else -> it
-                            }
-                        },
-                        onValueSelected = { chain ->
-                            onChainModeChange(chain)
-                            restartIfEnabled(currentConfig.copy(chainMode = chain))
-                        }
-                    )
-
-                    if ((chainMode == "tor-reverse" || chainMode == "psiphon-reverse") &&
-                        (protocol == "wg" || protocol == "gool-classic")
-                    ) {
-                        InfoLabel(
-                            text = stringResource(R.string.aether_reverse_tcp_note),
-                            isError = false
-                        )
-                    }
-                }
-            }
-
             val exitLocHint = stringResource(R.string.aether_exit_loc_hint)
             EditTextPreference(
                 title = { Text(stringResource(R.string.aether_exit_loc)) },
@@ -558,270 +478,178 @@ fun AetherSettings(
             )
         }
 
-        // 3. Scanning & Discovery (WARP protocols)
-        AnimatedVisibility(!currentConfig.isStandaloneCarrier) {
-            Column {
-                Spacer(modifier = Modifier.height(16.dp))
-                PreferenceGroupTitle(title = stringResource(R.string.aether_grp_scanning))
-                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                    ListPreference(
-                        title = { Text(stringResource(R.string.aether_scan_mode)) },
-                        selectedValue = scanMode,
-                        values = listOf("turbo", "balanced", "thorough", "verified", "ironclad"),
-                        valueText = {
-                            when (it) {
-                                "turbo" -> "Turbo (First responding)"
-                                "balanced" -> "Balanced (Fastest of several)"
-                                "thorough" -> "Thorough (Sweep full ranges)"
-                                "verified" -> "Verified (Connect-IP edges)"
-                                "ironclad" -> "Ironclad (Full HTTP test)"
-                                else -> it
-                            }
-                        },
-                        onValueSelected = { mode ->
-                            onScanModeChange(mode)
-                            restartIfEnabled(currentConfig.copy(scanMode = mode))
-                        }
-                    )
-
-                    ListPreference(
-                        title = { Text(stringResource(R.string.aether_ip_version)) },
-                        selectedValue = ipVersion,
-                        values = listOf("v4", "v6", "both"),
-                        valueText = {
-                            when (it) {
-                                "v4" -> "IPv4 (-4)"
-                                "v6" -> "IPv6 (-6)"
-                                "both" -> "Dual Stack IPv4 + IPv6 (--dual)"
-                                else -> it
-                            }
-                        },
-                        onValueSelected = { v ->
-                            onIpVersionChange(v)
-                            restartIfEnabled(currentConfig.copy(ipVersion = v))
-                        }
-                    )
-
-                    SwitchPreference(
-                        title = { Text(stringResource(R.string.aether_quick_reconnect)) },
-                        description = stringResource(R.string.aether_quick_reconnect_desc),
-                        checked = quickReconnect,
-                        onCheckedChange = { qr ->
-                            onQuickReconnectChange(qr)
-                            restartIfEnabled(currentConfig.copy(quickReconnect = qr))
-                        }
-                    )
+        // 3. Scanning & Discovery
+        Spacer(modifier = Modifier.height(16.dp))
+        PreferenceGroupTitle(title = stringResource(R.string.aether_grp_scanning))
+        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            ListPreference(
+                title = { Text(stringResource(R.string.aether_scan_mode)) },
+                selectedValue = scanMode,
+                values = listOf("turbo", "balanced", "thorough", "verified", "ironclad"),
+                valueText = {
+                    when (it) {
+                        "turbo" -> "Turbo (First responding)"
+                        "balanced" -> "Balanced (Fastest of several)"
+                        "thorough" -> "Thorough (Sweep full ranges)"
+                        "verified" -> "Verified (Connect-IP edges)"
+                        "ironclad" -> "Ironclad (Full HTTP test)"
+                        else -> it
+                    }
+                },
+                onValueSelected = { mode ->
+                    onScanModeChange(mode)
+                    restartIfEnabled(currentConfig.copy(scanMode = mode))
                 }
+            )
 
-                // 4. Anti-Censorship & Obfuscation
-                Spacer(modifier = Modifier.height(16.dp))
-                PreferenceGroupTitle(title = stringResource(R.string.aether_grp_obfuscation))
-                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                    ListPreference(
-                        title = { Text(stringResource(R.string.aether_noize)) },
-                        icon = { Icon(Icons.Rounded.Security, null) },
-                        selectedValue = noize,
-                        values = listOf("default", "off", "light", "firewall", "balanced", "gfw", "aggressive"),
-                        valueText = {
-                            when (it) {
-                                "default" -> "Default (Auto)"
-                                "off" -> "Off"
-                                "light" -> "Light"
-                                "firewall" -> "Firewall (MASQUE default)"
-                                "balanced" -> "Balanced (WG default)"
-                                "gfw" -> "GFW (Strict DPI / Iran)"
-                                "aggressive" -> "Aggressive"
-                                else -> it
-                            }
-                        },
-                        onValueSelected = { n ->
-                            onNoizeChange(n)
-                            restartIfEnabled(currentConfig.copy(noize = n))
-                        }
-                    )
-
-                    SwitchPreference(
-                        title = { Text(stringResource(R.string.aether_fragment)) },
-                        description = stringResource(R.string.aether_fragment_desc),
-                        checked = fragment,
-                        onCheckedChange = { f ->
-                            onFragmentChange(f)
-                            restartIfEnabled(currentConfig.copy(fragment = f))
-                        }
-                    )
-
-                    AnimatedVisibility(fragment) {
-                        Column {
-                            EditTextPreference(
-                                title = { Text(stringResource(R.string.aether_fragment_size)) },
-                                value = fragmentSize,
-                                isInputValid = { true },
-                                onValueChange = { s ->
-                                    onFragmentSizeChange(s)
-                                    restartIfEnabled(currentConfig.copy(fragmentSize = s))
-                                },
-                                inputHint = { "8-16" }
-                            )
-                            EditTextPreference(
-                                title = { Text(stringResource(R.string.aether_fragment_delay)) },
-                                value = fragmentDelay,
-                                isInputValid = { true },
-                                onValueChange = { d ->
-                                    onFragmentDelayChange(d)
-                                    restartIfEnabled(currentConfig.copy(fragmentDelay = d))
-                                },
-                                inputHint = { "2-10" }
-                            )
-                        }
+            ListPreference(
+                title = { Text(stringResource(R.string.aether_ip_version)) },
+                selectedValue = ipVersion,
+                values = listOf("v4", "v6", "both"),
+                valueText = {
+                    when (it) {
+                        "v4" -> "IPv4 (-4)"
+                        "v6" -> "IPv6 (-6)"
+                        "both" -> "Dual Stack IPv4 + IPv6 (--dual)"
+                        else -> it
                     }
-
-                    AnimatedVisibility(currentConfig.usesMasque) {
-                        Column {
-                            SwitchPreference(
-                                title = { Text(stringResource(R.string.aether_quic_v2)) },
-                                description = stringResource(R.string.aether_quic_v2_desc),
-                                checked = quicV2,
-                                onCheckedChange = { q ->
-                                    onQuicV2Change(q)
-                                    restartIfEnabled(currentConfig.copy(quicV2 = q))
-                                }
-                            )
-
-                            EditTextPreference(
-                                title = { Text(stringResource(R.string.aether_masque_sni)) },
-                                value = masqueSni,
-                                isInputValid = { true },
-                                onValueChange = { sni ->
-                                    onMasqueSniChange(sni)
-                                    restartIfEnabled(currentConfig.copy(masqueSni = sni))
-                                },
-                                inputHint = { "www.cloudflare.com" }
-                            )
-                        }
-                    }
-
-                    ListPreference(
-                        title = { Text(stringResource(R.string.aether_ech)) },
-                        selectedValue = if (ech == "off" || ech == "auto") ech else "auto",
-                        values = listOf("off", "auto"),
-                        valueText = {
-                            when (it) {
-                                "off" -> "Off"
-                                "auto" -> "Auto (Encrypted Client Hello)"
-                                else -> it
-                            }
-                        },
-                        onValueSelected = { e ->
-                            onEchChange(e)
-                            restartIfEnabled(currentConfig.copy(ech = e))
-                        }
-                    )
-
-                    AnimatedVisibility(ech != "off") {
-                        EditTextPreference(
-                            title = { Text(stringResource(R.string.aether_ech_dns)) },
-                            value = echDns,
-                            isInputValid = { true },
-                            onValueChange = { d ->
-                                onEchDnsChange(d)
-                                restartIfEnabled(currentConfig.copy(echDns = d))
-                            },
-                            inputHint = { "udp://1.1.1.1 or https://1.1.1.1/dns-query" }
-                        )
-                    }
+                },
+                onValueSelected = { v ->
+                    onIpVersionChange(v)
+                    restartIfEnabled(currentConfig.copy(ipVersion = v))
                 }
-            }
+            )
+
+            SwitchPreference(
+                title = { Text(stringResource(R.string.aether_quick_reconnect)) },
+                description = stringResource(R.string.aether_quick_reconnect_desc),
+                checked = quickReconnect,
+                onCheckedChange = { qr ->
+                    onQuickReconnectChange(qr)
+                    restartIfEnabled(currentConfig.copy(quickReconnect = qr))
+                }
+            )
         }
 
-        // 5. Psiphon Settings
-        AnimatedVisibility(currentConfig.usesPsiphon) {
-            Column {
-                Spacer(modifier = Modifier.height(16.dp))
-                PreferenceGroupTitle(title = stringResource(R.string.aether_grp_psiphon))
-                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                    ListPreference(
-                        title = { Text(stringResource(R.string.aether_psiphon_mode)) },
-                        selectedValue = psiphonMode,
-                        values = listOf("auto", "cdn", "direct"),
-                        valueText = {
-                            when (it) {
-                                "auto" -> "Auto"
-                                "cdn" -> "CDN Fronting (Meek / Restricted networks)"
-                                "direct" -> "Direct (No fronting)"
-                                else -> it
-                            }
-                        },
-                        onValueSelected = { m ->
-                            onPsiphonModeChange(m)
-                            restartIfEnabled(currentConfig.copy(psiphonMode = m))
-                        }
-                    )
+        // 4. Anti-Censorship & Obfuscation
+        Spacer(modifier = Modifier.height(16.dp))
+        PreferenceGroupTitle(title = stringResource(R.string.aether_grp_obfuscation))
+        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            ListPreference(
+                title = { Text(stringResource(R.string.aether_noize)) },
+                icon = { Icon(Icons.Rounded.Security, null) },
+                selectedValue = noize,
+                values = listOf("default", "off", "light", "firewall", "balanced", "gfw", "aggressive"),
+                valueText = {
+                    when (it) {
+                        "default" -> "Default (Auto)"
+                        "off" -> "Off"
+                        "light" -> "Light"
+                        "firewall" -> "Firewall (MASQUE default)"
+                        "balanced" -> "Balanced (WG default)"
+                        "gfw" -> "GFW (Strict DPI)"
+                        "aggressive" -> "Aggressive"
+                        else -> it
+                    }
+                },
+                onValueSelected = { n ->
+                    onNoizeChange(n)
+                    restartIfEnabled(currentConfig.copy(noize = n))
+                }
+            )
 
-                    ListPreference(
-                        title = { Text(stringResource(R.string.aether_psiphon_region)) },
-                        selectedValue = psiphonRegion,
-                        values = listOf("", "DE", "NL", "US", "GB", "CA", "FR", "CH", "SE", "JP", "SG", "AT", "BE", "FI", "NO", "PL", "ES", "IT", "AU"),
-                        valueText = { if (it.isEmpty()) "Auto (Best performance)" else it },
-                        onValueSelected = { r ->
-                            onPsiphonRegionChange(r)
-                            restartIfEnabled(currentConfig.copy(psiphonRegion = r))
-                        }
-                    )
+            SwitchPreference(
+                title = { Text(stringResource(R.string.aether_fragment)) },
+                description = stringResource(R.string.aether_fragment_desc),
+                checked = fragment,
+                onCheckedChange = { f ->
+                    onFragmentChange(f)
+                    restartIfEnabled(currentConfig.copy(fragment = f))
+                }
+            )
 
+            AnimatedVisibility(fragment) {
+                Column {
                     EditTextPreference(
-                        title = { Text(stringResource(R.string.aether_psiphon_cdn_sets)) },
-                        value = psiphonCdnSets,
+                        title = { Text(stringResource(R.string.aether_fragment_size)) },
+                        value = fragmentSize,
                         isInputValid = { true },
                         onValueChange = { s ->
-                            onPsiphonCdnSetsChange(s)
-                            restartIfEnabled(currentConfig.copy(psiphonCdnSets = s))
+                            onFragmentSizeChange(s)
+                            restartIfEnabled(currentConfig.copy(fragmentSize = s))
                         },
-                        inputHint = { "cloudflare,fastly,cloudfront" }
+                        inputHint = { "8-16" }
+                    )
+                    EditTextPreference(
+                        title = { Text(stringResource(R.string.aether_fragment_delay)) },
+                        value = fragmentDelay,
+                        isInputValid = { true },
+                        onValueChange = { d ->
+                            onFragmentDelayChange(d)
+                            restartIfEnabled(currentConfig.copy(fragmentDelay = d))
+                        },
+                        inputHint = { "2-10" }
                     )
                 }
             }
-        }
 
-        // 6. Tor Settings
-        AnimatedVisibility(currentConfig.usesTor) {
-            Column {
-                Spacer(modifier = Modifier.height(16.dp))
-                PreferenceGroupTitle(title = stringResource(R.string.aether_grp_tor))
-                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                    ListPreference(
-                        title = { Text(stringResource(R.string.aether_tor_bridges)) },
-                        selectedValue = torBridgesMode,
-                        values = listOf("auto", "force", "off"),
-                        valueText = {
-                            when (it) {
-                                "auto" -> "Auto (Fetch bridges if Tor is blocked)"
-                                "force" -> "Always use bridges (--tor-bridges)"
-                                "off" -> "Never use bridges (--no-tor-bridges)"
-                                else -> it
-                            }
-                        },
-                        onValueSelected = { m ->
-                            onTorBridgesModeChange(m)
-                            restartIfEnabled(currentConfig.copy(torBridgesMode = m))
+            AnimatedVisibility(currentConfig.usesMasque) {
+                Column {
+                    SwitchPreference(
+                        title = { Text(stringResource(R.string.aether_quic_v2)) },
+                        description = stringResource(R.string.aether_quic_v2_desc),
+                        checked = quicV2,
+                        onCheckedChange = { q ->
+                            onQuicV2Change(q)
+                            restartIfEnabled(currentConfig.copy(quicV2 = q))
                         }
                     )
 
                     EditTextPreference(
-                        title = { Text(stringResource(R.string.aether_tor_custom_bridge)) },
-                        value = torCustomBridge,
-                        singleLine = false,
+                        title = { Text(stringResource(R.string.aether_masque_sni)) },
+                        value = masqueSni,
                         isInputValid = { true },
-                        onValueChange = { b ->
-                            onTorCustomBridgeChange(b)
-                            restartIfEnabled(currentConfig.copy(torCustomBridge = b))
+                        onValueChange = { sni ->
+                            onMasqueSniChange(sni)
+                            restartIfEnabled(currentConfig.copy(masqueSni = sni))
                         },
-                        inputHint = { "obfs4 1.2.3.4:443 FINGERPRINT cert=... iat-mode=0" }
+                        inputHint = { "www.cloudflare.com" }
                     )
                 }
             }
+
+            ListPreference(
+                title = { Text(stringResource(R.string.aether_ech)) },
+                selectedValue = if (ech == "off" || ech == "auto") ech else "auto",
+                values = listOf("off", "auto"),
+                valueText = {
+                    when (it) {
+                        "off" -> "Off"
+                        "auto" -> "Auto (Encrypted Client Hello)"
+                        else -> it
+                    }
+                },
+                onValueSelected = { e ->
+                    onEchChange(e)
+                    restartIfEnabled(currentConfig.copy(ech = e))
+                }
+            )
+
+            AnimatedVisibility(ech != "off") {
+                EditTextPreference(
+                    title = { Text(stringResource(R.string.aether_ech_dns)) },
+                    value = echDns,
+                    isInputValid = { true },
+                    onValueChange = { d ->
+                        onEchDnsChange(d)
+                        restartIfEnabled(currentConfig.copy(echDns = d))
+                    },
+                    inputHint = { "udp://1.1.1.1 or https://1.1.1.1/dns-query" }
+                )
+            }
         }
 
-        // 7. Advanced & Custom Endpoints
+        // 5. Advanced & Custom Endpoints
         SettingsClickToReveal(stringResource(R.string.advanced)) {
             ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                 if (protocol == "masque" || protocol == "wg" || protocol == "gool") {

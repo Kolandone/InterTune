@@ -166,12 +166,13 @@ class App : Application(), SingletonImageLoader.Factory {
         } else null
         AetherProxyManager.setManualFallbackProxy(manualProxy)
 
-        // Check internal Aether proxy first
+        // Check internal Aether proxy first. Do NOT route traffic to 127.0.0.1:<port> until
+        // AetherProxyManager confirms the SOCKS5 port is listening, so a failed or starting
+        // tunnel can never leave the app stuck with ECONNREFUSED.
         if (dataStore[AetherProxyEnabledKey] == true) {
             val aetherConfig = AetherConfig.fromPreferences(dataStore.current)
             val effectivePort = aetherConfig.effectiveSocksPort()
             AetherProxyManager.start(this, aetherConfig, forceRestart = true)
-            AetherProxyManager.applyProxyToApp(port = effectivePort)
             ProxyAtStart.setting = "AETHER SOCKS5 127.0.0.1:$effectivePort"
         } else {
             // The proxy every client takes once, here: the settings page offers a restart while the one
