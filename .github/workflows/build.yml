@@ -18,18 +18,11 @@ jobs:
       - name: Clone submodules
         run: |
           git clone --depth 1 https://github.com/OuterTune/ffMetadataEx ffMetadataEx
-          git clone --recurse-submodules https://github.com/OuterTune/taglib taglib
+          git clone https://github.com/OuterTune/taglib taglib
+          git -C taglib checkout abf4cb2e421ff8ca2c97ae899f8dd915e91b5771
+          git -C taglib submodule update --init --recursive
           git clone https://github.com/MetrolistGroup/innertubex innertubex
           git -C innertubex checkout b5f8b6f1bc2b73ee9e3f3ac95b7eaa255368864e
-          # Fix AGP 8.11 compileSdk syntax in taglib
-          python3 -c "
-          with open('taglib/build.gradle.kts', 'r') as f:
-              content = f.read()
-          content = content.replace('compileSdk {\n        version = release(36)\n    }', 'compileSdk = 36')
-          content = content.replace('compileSdk {\r\n        version = release(36)\r\n    }', 'compileSdk = 36')
-          with open('taglib/build.gradle.kts', 'w') as f:
-              f.write(content)
-          "
 
       - name: set up JDK 21
         uses: actions/setup-java@v4
