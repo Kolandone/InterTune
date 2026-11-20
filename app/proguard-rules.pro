@@ -91,6 +91,12 @@
     @android.webkit.JavascriptInterface <methods>;
 }
 
+## Keep AndroidLibXrayLite (gomobile JNI)
+-keep class go.** { *; }
+-keep class libv2ray.** { *; }
+-dontwarn go.**
+-dontwarn libv2ray.**
+
 ## Quality of life for logs
 -keepclasseswithmembernames class com.dd3boh.outertune.playback.**
 -keepclasseswithmembernames class com.dd3boh.outertune.utils.scanners.**

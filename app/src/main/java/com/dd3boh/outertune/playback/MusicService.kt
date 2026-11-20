@@ -164,6 +164,7 @@ import com.dd3boh.outertune.constants.SleepScheduleStartKey
 import com.dd3boh.outertune.constants.SleepTimerDefaults
 import com.dd3boh.outertune.constants.SleepTimerFadeDurationKey
 import com.dd3boh.outertune.utils.aether.AetherProxyManager
+import com.dd3boh.outertune.utils.xray.XrayProxyManager
 import com.dd3boh.outertune.constants.SleepTimerFadeKey
 import com.dd3boh.outertune.constants.ShareAudioFocusKey
 import com.dd3boh.outertune.constants.SkipSilenceKey
@@ -3151,6 +3152,8 @@ class MusicService : MediaLibraryService(),
             val played = runBlocking(Dispatchers.IO) {
                 if (AetherProxyManager.state.value == AetherProxyManager.State.STARTING) {
                     AetherProxyManager.awaitReady(15_000L)
+                } else if (XrayProxyManager.state.value == XrayProxyManager.State.STARTING) {
+                    XrayProxyManager.awaitReady(10_000L)
                 }
                 try {
                     // The developer's "The next song fetched is gone from YouTube", debug builds only: see FaultInjection.callsGone.

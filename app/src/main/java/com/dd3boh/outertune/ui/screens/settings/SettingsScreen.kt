@@ -38,6 +38,7 @@ import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Update
+import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material.icons.rounded.VpnLock
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Badge
@@ -215,6 +216,12 @@ fun SettingsScreen(
                 description = stringResource(R.string.aether_proxy_desc),
                 icon = { Icon(Icons.Rounded.VpnLock, null) },
                 onClick = { navController.navigate("settings/aether") }
+            )
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.xray_proxy_title)) },
+                description = stringResource(R.string.xray_proxy_desc),
+                icon = { Icon(Icons.Rounded.VpnKey, null) },
+                onClick = { navController.navigate("settings/xray") }
             )
             PreferenceEntry(
                 title = { Text(stringResource(R.string.grp_privacy_and_history)) },

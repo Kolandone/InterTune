@@ -1,0 +1,330 @@
+/*
+ * Copyright (C) 2026 InterTune
+ *
+ * SPDX-License-Identifier: GPL-3.0
+ */
+
+package com.dd3boh.outertune.utils.xray
+
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import androidx.webkit.ProxyConfig
+import androidx.webkit.ProxyController
+import androidx.webkit.WebViewFeature
+import com.dd3boh.outertune.utils.AppProxySelector
+import com.dd3boh.outertune.utils.aether.AetherProxyManager
+import com.zionhuang.innertube.YouTube
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import libv2ray.CoreCallbackHandler
+import libv2ray.CoreController
+import libv2ray.Libv2ray
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.File
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.net.Socket
+import java.util.concurrent.TimeUnit
+
+/**
+ * Manages the embedded Xray-core engine (`patterniha/AndroidLibXrayLite` / `libv2ray.aar`).
+ * Runs in local proxy mode (`tunFd = 0`) exposing SOCKS5 on `127.0.0.1:<port>` and
+ * HTTP CONNECT on `127.0.0.1:<port + 1>` for WebView, without requiring an Android VPN permission.
+ */
+object XrayProxyManager {
+    private const val TAG = "XrayProxyManager"
+    private const val MAX_LOG_LINES = 200
+    const val DEFAULT_HOST = "127.0.0.1"
+    const val DEFAULT_PORT = 10808
+
+    enum class State {
+        STOPPED,
+        STARTING,
+        CONNECTED,
+        ERROR
+    }
+
+    data class ConnectionTestResult(
+        val ip: String,
+        val country: String,
+        val latencyMs: Long
+    )
+
+    private val _state = MutableStateFlow(State.STOPPED)
+    val state: StateFlow<State> = _state.asStateFlow()
+
+    private val _lastError = MutableStateFlow<String?>(null)
+    val lastError: StateFlow<String?> = _lastError.asStateFlow()
+
+    private val _activePort = MutableStateFlow(DEFAULT_PORT)
+    val activePort: StateFlow<Int> = _activePort.asStateFlow()
+
+    private val _logs = MutableStateFlow<List<String>>(emptyList())
+    val logs: StateFlow<List<String>> = _logs.asStateFlow()
+
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var controller: CoreController? = null
+    private var startJob: Job? = null
+    private var healthJob: Job? = null
+    private var envInitialized = false
+    private var fallbackProxy: Proxy? = null
+
+    fun setManualFallbackProxy(proxy: Proxy?) {
+        fallbackProxy = proxy
+    }
+
+    fun coreVersion(): String = runCatching { Libv2ray.checkVersionX() }.getOrDefault("Xray-core")
+
+    @Synchronized
+    fun start(
+        context: Context,
+        rawConfig: String,
+        port: Int = DEFAULT_PORT,
+        forceRestart: Boolean = true
+    ) {
+        if (!forceRestart && (_state.value == State.STARTING || _state.value == State.CONNECTED) && isRunning()) {
+            return
+        }
+
+        // Ensure Aether is stopped so both engines never fight over the app proxy
+        if (AetherProxyManager.state.value != AetherProxyManager.State.STOPPED) {
+            AetherProxyManager.stop()
+        }
+
+        stopInternal()
+        clearProxyToFallback()
+        _lastError.value = null
+        _activePort.value = port
+
+        val httpPort = port + 1
+        val parsed = XrayConfigParser.buildXrayJson(rawConfig, socksPort = port, httpPort = httpPort)
+        val configJson = parsed.getOrElse { err ->
+            val msg = err.localizedMessage ?: "Invalid Xray config"
+            appendLog("[ERROR] $msg")
+            _lastError.value = msg
+            _state.value = State.ERROR
+            return
+        }
+
+        _state.value = State.STARTING
+        appendLog(">>> Starting Xray (${coreVersion()}) on $DEFAULT_HOST:$port (HTTP :$httpPort)")
+
+        val assetDir = File(context.filesDir, "xray_assets").apply { mkdirs() }
+        if (!envInitialized) {
+            runCatching {
+                Libv2ray.initCoreEnv(assetDir.absolutePath, "")
+                envInitialized = true
+            }.onFailure { e ->
+                appendLog("[WARN] initCoreEnv: ${e.message}")
+            }
+        }
+
+        val callback = object : CoreCallbackHandler {
+            override fun startup(): Long {
+                appendLog(">>> Xray core started")
+                return 0L
+            }
+
+            override fun shutdown(): Long {
+                appendLog(">>> Xray core shut down")
+                return 0L
+            }
+
+            override fun onEmitStatus(p0: Long, p1: String?): Long {
+                if (!p1.isNullOrBlank()) {
+                    appendLog("[Xray] $p1")
+                }
+                return 0L
+            }
+        }
+
+        val ctrl = try {
+            Libv2ray.newCoreController(callback)
+        } catch (e: Throwable) {
+            val msg = "Failed to initialize Xray core: ${e.localizedMessage}"
+            Log.e(TAG, msg, e)
+            appendLog("[ERROR] $msg")
+            _lastError.value = msg
+            _state.value = State.ERROR
+            return
+        }
+        controller = ctrl
+
+        startJob = scope.launch {
+            try {
+                ctrl.startLoop(configJson, 0)
+            } catch (e: Throwable) {
+                if (controller === ctrl && _state.value != State.STOPPED) {
+                    val msg = e.localizedMessage ?: "Xray startLoop failed"
+                    Log.e(TAG, msg, e)
+                    appendLog("[ERROR] $msg")
+                    clearProxyToFallback()
+                    _lastError.value = msg
+                    _state.value = State.ERROR
+                }
+            }
+        }
+
+        healthJob = scope.launch {
+            for (attempt in 1..40) {
+                delay(250)
+                if (controller !== ctrl || _state.value == State.ERROR || _state.value == State.STOPPED) break
+                if (isPortReachable(DEFAULT_HOST, port)) {
+                    Log.i(TAG, "Xray SOCKS5 ready on $DEFAULT_HOST:$port (HTTP :$httpPort)")
+                    appendLog(">>> SOCKS5 proxy ready on $DEFAULT_HOST:$port")
+                    applyProxyToApp(DEFAULT_HOST, port, httpPort)
+                    _state.value = State.CONNECTED
+                    return@launch
+                }
+            }
+            if (controller === ctrl && _state.value == State.STARTING) {
+                val msg = "Xray failed to open port $port — check config & logs"
+                appendLog("[ERROR] $msg")
+                clearProxyToFallback()
+                _lastError.value = msg
+                _state.value = State.ERROR
+            }
+        }
+    }
+
+    @Synchronized
+    fun stop() {
+        stopInternal()
+        _state.value = State.STOPPED
+        _lastError.value = null
+        clearProxyToFallback()
+        appendLog(">>> Xray proxy stopped")
+    }
+
+    private fun stopInternal() {
+        healthJob?.cancel()
+        healthJob = null
+        val ctrl = controller
+        controller = null
+        if (ctrl != null) {
+            runCatching { ctrl.stopLoop() }
+        }
+        startJob?.cancel()
+        startJob = null
+    }
+
+    fun isRunning(): Boolean = runCatching { controller?.isRunning == true }.getOrDefault(false)
+
+    suspend fun awaitReady(timeoutMs: Long = 10_000L): Boolean {
+        val current = _state.value
+        if (current == State.CONNECTED) return true
+        if (current != State.STARTING) return false
+        return withTimeoutOrNull(timeoutMs) {
+            _state.first { it != State.STARTING }
+        } == State.CONNECTED
+    }
+
+    private fun applyProxyToApp(host: String, socksPort: Int, httpPort: Int) {
+        val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress.createUnresolved(host, socksPort))
+        YouTube.proxy = proxy
+        AppProxySelector.dynamic.activeProxy = proxy
+        applyWebViewProxy(host, httpPort)
+    }
+
+    private fun clearProxyToFallback() {
+        val restore = fallbackProxy
+        YouTube.proxy = restore
+        AppProxySelector.dynamic.activeProxy = restore
+        clearWebViewProxy()
+    }
+
+    private fun applyWebViewProxy(host: String, httpPort: Int) {
+        Handler(Looper.getMainLooper()).post {
+            runCatching {
+                if (WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+                    val config = ProxyConfig.Builder()
+                        .addProxyRule("http://$host:$httpPort")
+                        .addBypassRule("localhost")
+                        .addBypassRule("127.0.0.1")
+                        .addBypassRule("[::1]")
+                        .build()
+                    ProxyController.getInstance().setProxyOverride(config, { it.run() }) {
+                        Log.i(TAG, "WebView proxy routed through Xray http://$host:$httpPort")
+                    }
+                }
+            }
+        }
+    }
+
+    private fun clearWebViewProxy() {
+        Handler(Looper.getMainLooper()).post {
+            runCatching {
+                if (WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+                    ProxyController.getInstance().clearProxyOverride({ it.run() }) {}
+                }
+            }
+        }
+    }
+
+    suspend fun testConnection(port: Int = _activePort.value): Result<ConnectionTestResult> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress.createUnresolved(DEFAULT_HOST, port))
+                val client = OkHttpClient.Builder()
+                    .proxy(proxy)
+                    .connectTimeout(12, TimeUnit.SECONDS)
+                    .readTimeout(12, TimeUnit.SECONDS)
+                    .build()
+                val startMs = System.currentTimeMillis()
+                val request = Request.Builder()
+                    .url("https://www.cloudflare.com/cdn-cgi/trace")
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    val latency = System.currentTimeMillis() - startMs
+                    if (!response.isSuccessful) error("HTTP ${response.code}")
+                    val body = response.body?.string().orEmpty()
+                    val map = body.lines()
+                        .mapNotNull { line ->
+                            val idx = line.indexOf('=')
+                            if (idx > 0) line.substring(0, idx) to line.substring(idx + 1) else null
+                        }
+                        .toMap()
+                    ConnectionTestResult(
+                        ip = map["ip"] ?: "unknown",
+                        country = map["loc"] ?: "unknown",
+                        latencyMs = latency
+                    )
+                }
+            }
+        }
+
+    fun clearLogs() {
+        _logs.value = emptyList()
+    }
+
+    private fun isPortReachable(host: String, port: Int): Boolean = try {
+        Socket().use {
+            it.connect(InetSocketAddress(host, port), 300)
+            true
+        }
+    } catch (_: Exception) {
+        false
+    }
+
+    private fun appendLog(line: String) {
+        val current = _logs.value
+        _logs.value = if (current.size >= MAX_LOG_LINES) {
+            current.drop(current.size - MAX_LOG_LINES + 1) + line
+        } else {
+            current + line
+        }
+    }
+}

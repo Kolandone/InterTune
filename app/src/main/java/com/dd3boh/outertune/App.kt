@@ -54,8 +54,12 @@ import com.dd3boh.outertune.constants.ProxyEnabledKey
 import com.dd3boh.outertune.constants.ProxyTypeKey
 import com.dd3boh.outertune.constants.ProxyUrlKey
 import com.dd3boh.outertune.constants.AetherProxyEnabledKey
+import com.dd3boh.outertune.constants.XrayConfigInputKey
+import com.dd3boh.outertune.constants.XrayPortKey
+import com.dd3boh.outertune.constants.XrayProxyEnabledKey
 import com.dd3boh.outertune.utils.aether.AetherConfig
 import com.dd3boh.outertune.utils.aether.AetherProxyManager
+import com.dd3boh.outertune.utils.xray.XrayProxyManager
 import com.dd3boh.outertune.constants.SYSTEM_DEFAULT
 import com.dd3boh.outertune.constants.StandInsKey
 import com.dd3boh.outertune.constants.StreamOrderKey
@@ -165,11 +169,18 @@ class App : Application(), SingletonImageLoader.Factory {
             }
         } else null
         AetherProxyManager.setManualFallbackProxy(manualProxy)
+        XrayProxyManager.setManualFallbackProxy(manualProxy)
 
-        // Check internal Aether proxy first. Do NOT route traffic to 127.0.0.1:<port> until
-        // AetherProxyManager confirms the SOCKS5 port is listening, so a failed or starting
-        // tunnel can never leave the app stuck with ECONNREFUSED.
-        if (dataStore[AetherProxyEnabledKey] == true) {
+        // Check internal Xray or Aether proxy first. Do NOT route traffic to local ports until
+        // the SOCKS5 listener is actually open, so a failed or starting tunnel can never leave
+        // the app stuck with ECONNREFUSED.
+        val xrayEnabled = dataStore[XrayProxyEnabledKey] == true
+        val xrayConfig = dataStore[XrayConfigInputKey].orEmpty()
+        if (xrayEnabled && xrayConfig.isNotBlank()) {
+            val xrayPort = dataStore[XrayPortKey] ?: XrayProxyManager.DEFAULT_PORT
+            XrayProxyManager.start(this, xrayConfig, port = xrayPort, forceRestart = true)
+            ProxyAtStart.setting = "XRAY SOCKS5 127.0.0.1:$xrayPort"
+        } else if (dataStore[AetherProxyEnabledKey] == true) {
             val aetherConfig = AetherConfig.fromPreferences(dataStore.current)
             val effectivePort = aetherConfig.effectiveSocksPort()
             AetherProxyManager.start(this, aetherConfig, forceRestart = true)
@@ -222,6 +233,8 @@ class App : Application(), SingletonImageLoader.Factory {
                         ?: run {
                             if (AetherProxyManager.state.value == AetherProxyManager.State.STARTING) {
                                 AetherProxyManager.awaitReady(20_000L)
+                            } else if (XrayProxyManager.state.value == XrayProxyManager.State.STARTING) {
+                                XrayProxyManager.awaitReady(10_000L)
                             }
                             YouTube.visitorData().onFailure {
                                 withContext(Dispatchers.Main) {
@@ -242,6 +255,32 @@ class App : Application(), SingletonImageLoader.Factory {
             AetherProxyManager.state
                 .collect { aetherState ->
                     if (aetherState == AetherProxyManager.State.CONNECTED) {
+                        YouTube.forgetIdleConnections()
+                        if (YouTube.visitorData.isNullOrBlank()) {
+                            YouTube.visitorData().getOrNull()?.let { fresh ->
+                                YouTube.visitorData = fresh
+                                dataStore.edit { settings ->
+                                    settings[VisitorDataKey] = fresh
+                                }
+                            }
+                        }
+                        if (!YouTube.cookie.isNullOrBlank() && dataStore[AccountNameKey].isNullOrBlank()) {
+                            YouTube.accountInfo().getOrNull()?.let { account ->
+                                dataStore.edit { settings ->
+                                    settings[AccountNameKey] = account.name
+                                    settings[AccountEmailKey] = account.email.orEmpty()
+                                    settings[AccountChannelHandleKey] = account.channelHandle.orEmpty()
+                                }
+                            }
+                        }
+                        YouTubeRegion.refresh(this@App)
+                    }
+                }
+        }
+        GlobalScope.launch(Dispatchers.IO) {
+            XrayProxyManager.state
+                .collect { xrayState ->
+                    if (xrayState == XrayProxyManager.State.CONNECTED) {
                         YouTube.forgetIdleConnections()
                         if (YouTube.visitorData.isNullOrBlank()) {
                             YouTube.visitorData().getOrNull()?.let { fresh ->

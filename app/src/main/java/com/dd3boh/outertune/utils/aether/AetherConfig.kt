@@ -7,6 +7,7 @@
 package com.dd3boh.outertune.utils.aether
 
 import androidx.datastore.preferences.core.Preferences
+import com.dd3boh.outertune.constants.AetherChainModeKey
 import com.dd3boh.outertune.constants.AetherCustomPeerKey
 import com.dd3boh.outertune.constants.AetherDnsKey
 import com.dd3boh.outertune.constants.AetherEchDnsKey
@@ -28,19 +29,21 @@ import com.dd3boh.outertune.constants.AetherQuicV2Key
 import com.dd3boh.outertune.constants.AetherQuickReconnectKey
 import com.dd3boh.outertune.constants.AetherScanModeKey
 import com.dd3boh.outertune.constants.AetherTeamKey
+import com.dd3boh.outertune.constants.AetherTorBridgesModeKey
+import com.dd3boh.outertune.constants.AetherTorCustomBridgeKey
 import com.dd3boh.outertune.constants.AetherUpstreamKey
 import java.io.File
 
 /**
- * Full configuration for the embedded Aether censorship-circumvention engine (v2.4.0+).
- * Supports all native Aether protocols (MASQUE, WireGuard, Gool, Gool Classic, MiM),
- * transports (HTTP/3 QUIC, HTTP/2 TLS), scan modes, Noize obfuscation, TLS fragmentation,
- * ECH, custom SNI, custom peers, DNS, upstream proxy, and Zero Trust.
+ * Configuration for the embedded Aether censorship-circumvention engine (v2.4.0+) with Tor support.
+ * Default profile: MASQUE over HTTP/2 (`--masque --h2`) + Tor inside the tunnel (`--tor`)
+ * + Ironclad scanner (`--scan ironclad`), giving reliable non-IR exits for YouTube Music.
  */
 data class AetherConfig(
-    val protocol: String = "masque",               // masque | wg | gool | gool-classic | mim
-    val masqueTransport: String = "h3",            // h3 | h2
-    val scanMode: String = "turbo",                // turbo | balanced | thorough | verified | ironclad
+    val protocol: String = "masque",               // masque | wg | gool | gool-classic | mim | tor-only
+    val masqueTransport: String = "h2",            // h2 | h3
+    val chainMode: String = "tor",                 // none | tor | tor-reverse
+    val scanMode: String = "ironclad",             // turbo | balanced | thorough | verified | ironclad
     val ipVersion: String = "v4",                  // v4 | v6 | both
     val noize: String = "default",                 // default | off | light | firewall | balanced | gfw | aggressive
     val quickReconnect: Boolean = true,
@@ -52,6 +55,8 @@ data class AetherConfig(
     val ech: String = "off",                       // off | auto | <base64>
     val echDns: String = "",                       // e.g. https://1.1.1.1/dns-query
     val exitLoc: String = "",                      // e.g. !IR,RU or DE,NL
+    val torBridgesMode: String = "auto",           // auto | force | off
+    val torCustomBridge: String = "",
     val customPeer: String = "",                   // ip:port
     val outerPeer: String = "",                    // ip:port for gool-classic / mim
     val innerPeer: String = "",                    // ip:port for gool / gool-classic / mim
@@ -61,122 +66,198 @@ data class AetherConfig(
     val extraArgs: String = "",                    // Power-user additional CLI args
     val port: Int = AetherProxyManager.DEFAULT_PORT
 ) {
+    val isStandaloneTor: Boolean
+        get() = protocol == "tor-only"
+
     val usesMasque: Boolean
         get() = protocol == "masque" || protocol == "gool" || protocol == "mim"
 
-    fun effectiveSocksPort(): Int = port
+    val usesTor: Boolean
+        get() = isStandaloneTor || chainMode == "tor" || chainMode == "tor-reverse"
 
-    fun effectiveHttpPort(): Int = port + 1
+    /**
+     * Local SOCKS5 port that InterTune routes traffic through.
+     * In `--tor` chain mode, Aether serves WARP on `--bind` and Tor on `--tor-bind` (`port + 1`).
+     */
+    fun effectiveSocksPort(): Int = when {
+        isStandaloneTor -> port
+        chainMode == "tor" -> port + 1
+        else -> port
+    }
+
+    /**
+     * Local HTTP CONNECT port used by Android WebView (LoginScreen) so sign-in also goes through Aether/Tor.
+     */
+    fun effectiveHttpPort(): Int = when {
+        isStandaloneTor -> port + 1
+        chainMode == "tor" -> port + 2
+        else -> port + 1
+    }
 
     /**
      * Build the exact CLI argument list for `aether` v2.4.0.
      */
     fun buildCliArgs(
         binaryPath: String,
+        nativeDir: File,
         configDir: File
     ): List<String> {
         val args = mutableListOf<String>()
         args += binaryPath
         args += listOf("--config", File(configDir, "aether.toml").absolutePath)
         args += listOf("--bind", "${AetherProxyManager.DEFAULT_HOST}:$port")
-        args += listOf("--http-proxy", "${AetherProxyManager.DEFAULT_HOST}:${effectiveHttpPort()}")
 
-        val effectiveProtocol = if (protocol in VALID_PROTOCOLS) protocol else "masque"
+        val sanitizedProto = if (protocol in VALID_PROTOCOLS) protocol else "masque"
+        val sanitizedChain = if (chainMode in VALID_CHAINS) chainMode else "tor"
+
+        // Reverse Tor requires TCP-capable MASQUE/Gool/MiM over HTTP/2
+        val isReverseTor = !isStandaloneTor && sanitizedChain == "tor-reverse"
+        val effectiveProtocol = if (isReverseTor && (sanitizedProto == "wg" || sanitizedProto == "gool-classic")) {
+            "masque"
+        } else {
+            sanitizedProto
+        }
+
+        // HTTP proxy for WebView: in --tor mode, use --tor-http; otherwise --http-proxy
+        if (isStandaloneTor || sanitizedChain != "tor") {
+            args += listOf("--http-proxy", "${AetherProxyManager.DEFAULT_HOST}:${effectiveHttpPort()}")
+        }
 
         when (effectiveProtocol) {
             "wg" -> args += "--wg"
             "gool" -> args += "--gool"
             "gool-classic" -> args += "--gool-classic"
             "mim" -> args += "--mim"
+            "tor-only" -> args += "--tor-only"
             else -> args += "--masque"
         }
 
-        args += listOf("--scan", scanMode.lowercase())
+        if (!isStandaloneTor) {
+            args += listOf("--scan", scanMode.lowercase())
 
-        when (ipVersion.lowercase()) {
-            "v6" -> args += "-6"
-            "both", "dual" -> args += "--dual"
-            else -> args += "-4"
+            when (ipVersion.lowercase()) {
+                "v6" -> args += "-6"
+                "both", "dual" -> args += "--dual"
+                else -> args += "-4"
+            }
+
+            args += if (quickReconnect) "--quick-reconnect" else "--no-quick-reconnect"
+
+            if (noize.isNotBlank() && noize != "default") {
+                args += listOf("--noize", noize.lowercase())
+            }
+
+            // MASQUE transport options
+            val effectiveUsesMasque = effectiveProtocol == "masque" || effectiveProtocol == "gool" || effectiveProtocol == "mim"
+            if (effectiveUsesMasque) {
+                if (isReverseTor || masqueTransport == "h2") {
+                    args += "--h2"
+                } else {
+                    args += "--h3"
+                }
+                if (!quicV2) {
+                    args += "--no-quic-v2"
+                }
+                if (masqueSni.isNotBlank()) {
+                    args += listOf("--masque-sni", masqueSni.trim())
+                }
+            }
+
+            // TLS ClientHello fragmentation
+            if (fragment) {
+                args += "--fragment"
+                if (fragmentSize.isNotBlank()) {
+                    args += listOf("--fragment-size", fragmentSize.trim())
+                }
+                if (fragmentDelay.isNotBlank()) {
+                    args += listOf("--fragment-delay", fragmentDelay.trim())
+                }
+            }
+
+            // Encrypted Client Hello (ECH)
+            if (ech.isNotBlank() && ech != "off") {
+                args += listOf("--ech", ech.trim())
+                if (echDns.isNotBlank()) {
+                    args += listOf("--ech-dns", echDns.trim())
+                }
+            }
+
+            // Custom peer endpoints
+            when (effectiveProtocol) {
+                "masque" -> {
+                    if (customPeer.isNotBlank()) {
+                        val flag = if (isReverseTor || masqueTransport == "h2") "--h2-peer" else "--peer"
+                        args += listOf(flag, customPeer.trim())
+                    }
+                }
+                "wg" -> {
+                    if (customPeer.isNotBlank()) {
+                        args += listOf("--peer", customPeer.trim())
+                    }
+                }
+                "gool" -> {
+                    if (customPeer.isNotBlank()) {
+                        val flag = if (isReverseTor || masqueTransport == "h2") "--h2-peer" else "--peer"
+                        args += listOf(flag, customPeer.trim())
+                    }
+                    if (innerPeer.isNotBlank()) {
+                        args += listOf("--gool-peer", innerPeer.trim())
+                    }
+                }
+                "gool-classic" -> {
+                    if (outerPeer.isNotBlank()) {
+                        args += listOf("--wiw-outer", outerPeer.trim())
+                    }
+                    if (innerPeer.isNotBlank()) {
+                        args += listOf("--wiw-inner", innerPeer.trim())
+                    }
+                }
+                "mim" -> {
+                    if (outerPeer.isNotBlank()) {
+                        args += listOf("--mim-outer", outerPeer.trim())
+                    }
+                    if (innerPeer.isNotBlank()) {
+                        args += listOf("--mim-inner", innerPeer.trim())
+                    }
+                }
+            }
+
+            // Tor chain mode
+            when (sanitizedChain) {
+                "tor" -> {
+                    args += "--tor"
+                    args += listOf("--tor-bind", "${AetherProxyManager.DEFAULT_HOST}:${effectiveSocksPort()}")
+                    args += listOf("--tor-http", "${AetherProxyManager.DEFAULT_HOST}:${effectiveHttpPort()}")
+                }
+                "tor-reverse" -> {
+                    args += "--tor-reverse"
+                }
+            }
         }
 
-        args += if (quickReconnect) "--quick-reconnect" else "--no-quick-reconnect"
+        // Tor specific flags + bundled lyrebird pluggable transport
+        if (usesTor) {
+            val torDir = File(configDir, "tor").apply { mkdirs() }
+            args += listOf("--tor-dir", torDir.absolutePath)
 
-        if (noize.isNotBlank() && noize != "default") {
-            args += listOf("--noize", noize.lowercase())
-        }
+            val lyrebird = File(nativeDir, "liblyrebird.so")
+            if (lyrebird.exists() && lyrebird.length() > 0) {
+                args += listOf("--tor-pt", "obfs4=${lyrebird.absolutePath}")
+                args += listOf("--tor-pt", "webtunnel=${lyrebird.absolutePath}")
+            }
 
-        // MASQUE transport options
-        val effectiveUsesMasque = effectiveProtocol == "masque" || effectiveProtocol == "gool" || effectiveProtocol == "mim"
-        if (effectiveUsesMasque) {
-            if (masqueTransport == "h2") {
-                args += "--h2"
-            } else {
-                args += "--h3"
+            when (torBridgesMode) {
+                "force" -> args += "--tor-bridges"
+                "off" -> args += "--no-tor-bridges"
             }
-            if (!quicV2) {
-                args += "--no-quic-v2"
-            }
-            if (masqueSni.isNotBlank()) {
-                args += listOf("--masque-sni", masqueSni.trim())
-            }
-        }
 
-        // TLS ClientHello fragmentation
-        if (fragment) {
-            args += "--fragment"
-            if (fragmentSize.isNotBlank()) {
-                args += listOf("--fragment-size", fragmentSize.trim())
-            }
-            if (fragmentDelay.isNotBlank()) {
-                args += listOf("--fragment-delay", fragmentDelay.trim())
-            }
-        }
-
-        // Encrypted Client Hello (ECH)
-        if (ech.isNotBlank() && ech != "off") {
-            args += listOf("--ech", ech.trim())
-            if (echDns.isNotBlank()) {
-                args += listOf("--ech-dns", echDns.trim())
-            }
-        }
-
-        // Custom peer endpoints
-        when (effectiveProtocol) {
-            "masque" -> {
-                if (customPeer.isNotBlank()) {
-                    val flag = if (masqueTransport == "h2") "--h2-peer" else "--peer"
-                    args += listOf(flag, customPeer.trim())
-                }
-            }
-            "wg" -> {
-                if (customPeer.isNotBlank()) {
-                    args += listOf("--peer", customPeer.trim())
-                }
-            }
-            "gool" -> {
-                if (customPeer.isNotBlank()) {
-                    val flag = if (masqueTransport == "h2") "--h2-peer" else "--peer"
-                    args += listOf(flag, customPeer.trim())
-                }
-                if (innerPeer.isNotBlank()) {
-                    args += listOf("--gool-peer", innerPeer.trim())
-                }
-            }
-            "gool-classic" -> {
-                if (outerPeer.isNotBlank()) {
-                    args += listOf("--wiw-outer", outerPeer.trim())
-                }
-                if (innerPeer.isNotBlank()) {
-                    args += listOf("--wiw-inner", innerPeer.trim())
-                }
-            }
-            "mim" -> {
-                if (outerPeer.isNotBlank()) {
-                    args += listOf("--mim-outer", outerPeer.trim())
-                }
-                if (innerPeer.isNotBlank()) {
-                    args += listOf("--mim-inner", innerPeer.trim())
-                }
+            if (torCustomBridge.isNotBlank()) {
+                torCustomBridge.lines()
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() && !it.startsWith("#") }
+                    .forEach { bridgeLine ->
+                        args += listOf("--tor-bridge", bridgeLine)
+                    }
             }
         }
 
@@ -206,15 +287,19 @@ data class AetherConfig(
     }
 
     companion object {
-        val VALID_PROTOCOLS = setOf("masque", "wg", "gool", "gool-classic", "mim")
+        val VALID_PROTOCOLS = setOf("masque", "wg", "gool", "gool-classic", "mim", "tor-only")
+        val VALID_CHAINS = setOf("none", "tor", "tor-reverse")
 
         fun fromPreferences(prefs: Preferences): AetherConfig {
             val savedProto = prefs[AetherProtocolKey]
             val protocol = if (savedProto in VALID_PROTOCOLS) savedProto!! else "masque"
+            val savedChain = prefs[AetherChainModeKey]
+            val chainMode = if (savedChain in VALID_CHAINS) savedChain!! else "tor"
             return AetherConfig(
                 protocol = protocol,
-                masqueTransport = prefs[AetherMasqueTransportKey] ?: "h3",
-                scanMode = prefs[AetherScanModeKey] ?: "turbo",
+                masqueTransport = prefs[AetherMasqueTransportKey] ?: "h2",
+                chainMode = chainMode,
+                scanMode = prefs[AetherScanModeKey] ?: "ironclad",
                 ipVersion = prefs[AetherIpVersionKey] ?: "v4",
                 noize = prefs[AetherNoizeKey] ?: "default",
                 quickReconnect = prefs[AetherQuickReconnectKey] ?: true,
@@ -226,6 +311,8 @@ data class AetherConfig(
                 ech = prefs[AetherEchKey] ?: "off",
                 echDns = prefs[AetherEchDnsKey] ?: "",
                 exitLoc = prefs[AetherExitLocKey] ?: "",
+                torBridgesMode = prefs[AetherTorBridgesModeKey] ?: "auto",
+                torCustomBridge = prefs[AetherTorCustomBridgeKey] ?: "",
                 customPeer = prefs[AetherCustomPeerKey] ?: "",
                 outerPeer = prefs[AetherOuterPeerKey] ?: "",
                 innerPeer = prefs[AetherInnerPeerKey] ?: "",

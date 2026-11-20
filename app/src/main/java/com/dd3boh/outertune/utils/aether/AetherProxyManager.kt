@@ -16,6 +16,7 @@ import androidx.webkit.ProxyConfig
 import androidx.webkit.ProxyController
 import androidx.webkit.WebViewFeature
 import com.dd3boh.outertune.utils.AppProxySelector
+import com.dd3boh.outertune.utils.xray.XrayProxyManager
 import com.zionhuang.innertube.YouTube
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -129,6 +130,10 @@ object AetherProxyManager {
             binary.setExecutable(true, false)
         }
 
+        if (XrayProxyManager.state.value != XrayProxyManager.State.STOPPED) {
+            XrayProxyManager.stop()
+        }
+
         stopProcess()
         clearProxyToFallback()
         _lastError.value = null
@@ -138,10 +143,12 @@ object AetherProxyManager {
         val configDir = File(context.filesDir, "aether").apply { mkdirs() }
         val cacheDir = File(context.cacheDir, "aether_tmp").apply { mkdirs() }
         val targetPort = config.effectiveSocksPort()
+        val httpPort = config.effectiveHttpPort()
         _activePort.value = targetPort
 
         val args = config.buildCliArgs(
             binaryPath = binary.absolutePath,
+            nativeDir = nativeDir,
             configDir = configDir
         )
 
@@ -216,15 +223,15 @@ object AetherProxyManager {
                 }
             }
 
-            // Health check: wait up to 90s for Aether SOCKS5 to open
+            // Health check: wait up to 180s (ironclad + Tor bootstrap can take time)
             healthJob = scope.launch {
-                for (attempt in 1..180) {
+                for (attempt in 1..360) {
                     delay(500)
                     if (!isRunning() || process !== proc) break
                     if (isPortReachable(DEFAULT_HOST, targetPort)) {
-                        Log.i(TAG, "Aether SOCKS5 is ready on $DEFAULT_HOST:$targetPort")
+                        Log.i(TAG, "Aether SOCKS5 is ready on $DEFAULT_HOST:$targetPort (HTTP :$httpPort)")
                         appendLog(">>> SOCKS5 proxy ready on $DEFAULT_HOST:$targetPort")
-                        applyProxyToApp(DEFAULT_HOST, targetPort)
+                        applyProxyToApp(DEFAULT_HOST, targetPort, httpPort)
                         _statusDetail.value = "SOCKS5 $DEFAULT_HOST:$targetPort"
                         _state.value = State.CONNECTED
                         return@launch
@@ -234,7 +241,7 @@ object AetherProxyManager {
                     Log.w(TAG, "Timed out waiting for Aether SOCKS5 port $targetPort")
                     appendLog(">>> Timed out waiting for port $targetPort")
                     clearProxyToFallback()
-                    _lastError.value = "Connection timeout (90s) — check Logs for details"
+                    _lastError.value = "Connection timeout (180s) — check Logs for details"
                     _state.value = State.ERROR
                 }
             }
@@ -335,11 +342,15 @@ object AetherProxyManager {
      * Apply SOCKS5 proxy dynamically to YouTube client, all application OkHttp stacks,
      * and Android WebView (via Aether's HTTP CONNECT proxy on `port + 1`).
      */
-    fun applyProxyToApp(host: String = DEFAULT_HOST, port: Int = _activePort.value) {
+    fun applyProxyToApp(
+        host: String = DEFAULT_HOST,
+        port: Int = _activePort.value,
+        httpPort: Int = port + 1
+    ) {
         val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress.createUnresolved(host, port))
         YouTube.proxy = proxy
         AppProxySelector.dynamic.activeProxy = proxy
-        applyWebViewProxy(host, port + 1)
+        applyWebViewProxy(host, httpPort)
     }
 
     private fun applyWebViewProxy(host: String, httpPort: Int) {

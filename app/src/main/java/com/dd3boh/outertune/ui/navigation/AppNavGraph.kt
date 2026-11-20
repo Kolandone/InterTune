@@ -87,6 +87,7 @@ import com.dd3boh.outertune.ui.screens.settings.LyricsSettings
 import com.dd3boh.outertune.ui.screens.settings.EqualizerSettings
 import com.dd3boh.outertune.ui.screens.settings.PlayerSettings
 import com.dd3boh.outertune.ui.screens.settings.AetherSettings
+import com.dd3boh.outertune.ui.screens.settings.XraySettings
 import com.dd3boh.outertune.ui.screens.settings.PrivacySettings
 import com.dd3boh.outertune.ui.screens.settings.RecognitionSettings
 import com.dd3boh.outertune.ui.screens.settings.RecommendationsDataSettings
@@ -494,6 +495,9 @@ fun NavGraphBuilder.appDestinations(
         }
         screen("settings/aether") {
             AetherSettings(navController, scrollBehavior)
+        }
+        screen("settings/xray") {
+            XraySettings(navController, scrollBehavior)
         }
         screen("settings/recommendations") {
             RecommendationsSettings(navController, scrollBehavior)

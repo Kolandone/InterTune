@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Lan
+import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material.icons.rounded.VpnLock
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,6 +43,7 @@ import com.dd3boh.outertune.constants.ProxyEnabledKey
 import com.dd3boh.outertune.constants.ProxyTypeKey
 import com.dd3boh.outertune.constants.ProxyUrlKey
 import com.dd3boh.outertune.utils.aether.AetherProxyManager
+import com.dd3boh.outertune.utils.xray.XrayProxyManager
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.EditTextPreference
 import com.dd3boh.outertune.ui.component.FloatingTopBar
@@ -76,6 +78,9 @@ fun PrivacySettings(
     val aetherState by AetherProxyManager.state.collectAsState()
     val aetherLastError by AetherProxyManager.lastError.collectAsState()
     val aetherActivePort by AetherProxyManager.activePort.collectAsState()
+    val xrayState by XrayProxyManager.state.collectAsState()
+    val xrayLastError by XrayProxyManager.lastError.collectAsState()
+    val xrayActivePort by XrayProxyManager.activePort.collectAsState()
 
     val (proxyEnabled, onProxyEnabledChange) = rememberPreference(key = ProxyEnabledKey, defaultValue = false)
     val (proxyType, onProxyTypeChange) = rememberEnumPreference(key = ProxyTypeKey, defaultValue = Proxy.Type.HTTP)
@@ -147,6 +152,19 @@ fun PrivacySettings(
                     description = aetherSummary,
                     icon = { Icon(Icons.Rounded.VpnLock, null) },
                     onClick = { navController.navigate("settings/aether") }
+                )
+
+                val xraySummary = when (xrayState) {
+                    XrayProxyManager.State.CONNECTED -> stringResource(R.string.xray_status_connected, xrayActivePort)
+                    XrayProxyManager.State.STARTING -> stringResource(R.string.aether_status_connecting)
+                    XrayProxyManager.State.ERROR -> xrayLastError ?: "Error"
+                    XrayProxyManager.State.STOPPED -> stringResource(R.string.xray_proxy_desc)
+                }
+                PreferenceEntry(
+                    title = { Text(stringResource(R.string.xray_proxy_title)) },
+                    description = xraySummary,
+                    icon = { Icon(Icons.Rounded.VpnKey, null) },
+                    onClick = { navController.navigate("settings/xray") }
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))

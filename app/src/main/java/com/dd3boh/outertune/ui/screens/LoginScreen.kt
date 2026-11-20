@@ -76,6 +76,7 @@ import com.dd3boh.outertune.constants.VisitorDataKey
 import com.dd3boh.outertune.ui.component.FloatingTopBar
 import com.dd3boh.outertune.utils.WhyStopped
 import com.dd3boh.outertune.utils.aether.AetherProxyManager
+import com.dd3boh.outertune.utils.xray.XrayProxyManager
 import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.rememberPreference
 import com.dd3boh.outertune.utils.reportException
@@ -186,6 +187,8 @@ fun LoginScreen(
             runCatching { YouTube.cookie = cookie }
             if (AetherProxyManager.state.value == AetherProxyManager.State.STARTING) {
                 AetherProxyManager.awaitReady(10_000L)
+            } else if (XrayProxyManager.state.value == XrayProxyManager.State.STARTING) {
+                XrayProxyManager.awaitReady(10_000L)
             }
             val account = YouTube.accountInfo().onFailure { reportException(it) }.getOrNull()
             if (account != null) {

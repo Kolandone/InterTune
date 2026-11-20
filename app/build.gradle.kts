@@ -52,8 +52,8 @@ android {
         applicationId = "dev.skye.intertune"
         minSdk = 24
         targetSdk = 36
-        versionCode = 108
-        versionName = "0.12.11-aether.6"
+        versionCode = 109
+        versionName = "0.12.11-aether.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Obfuscated, not encrypted, and the difference matters. Anything the app can read, so
@@ -325,6 +325,7 @@ ksp {
 }
 
 dependencies {
+    implementation(files("libs/libv2ray.aar"))
     implementation(libs.kyant.backdrop)
     implementation(libs.guava)
     implementation(libs.coroutines.guava)
