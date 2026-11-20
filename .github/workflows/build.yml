@@ -19,7 +19,8 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/OuterTune/ffMetadataEx ffMetadataEx
           git clone --depth 1 https://github.com/OuterTune/taglib taglib
-          git clone --depth 1 https://github.com/MetrolistGroup/innertubex innertubex
+          git clone https://github.com/MetrolistGroup/innertubex innertubex
+          git -C innertubex checkout b5f8b6f1bc2b73ee9e3f3ac95b7eaa255368864e
           # Fix AGP 8.11 compileSdk syntax in taglib
           python3 -c "
           with open('taglib/build.gradle.kts', 'r') as f:
