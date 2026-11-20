@@ -376,6 +376,8 @@ class PoTokenWebView private constructor(
 
         private val httpClient = OkHttpClient.Builder()
             .proxySelector(com.dd3boh.outertune.utils.AppProxySelector.dynamic)
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
             .build()
 
         suspend fun getNewPoTokenGenerator(context: Context): PoTokenWebView {

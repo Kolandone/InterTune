@@ -14,7 +14,7 @@ package com.dd3boh.outertune.constants
  * repository for the same purpose.
  */
 object Links {
-    const val REPO = "https://github.com/ItzSkyeYT/InterTune"
+    const val REPO = "https://github.com/Kolandone/InterTune"
     const val ISSUES = "$REPO/issues"
     const val DISCUSSIONS = "$REPO/discussions"
     const val RELEASES = "$REPO/releases"

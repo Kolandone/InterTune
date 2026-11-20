@@ -218,16 +218,42 @@ class App : Application(), SingletonImageLoader.Factory {
                 .collect { visitorData ->
                     YouTube.visitorData = visitorData
                         ?.takeIf { it != "null" } // Previously visitorData was sometimes saved as "null" due to a bug
-                        ?: YouTube.visitorData().onFailure {
-                            withContext(Dispatchers.Main) {
-                                Toaster.show(this@App, "Failed to get visitorData.", LENGTH_SHORT)
+                        ?: run {
+                            if (AetherProxyManager.state.value == AetherProxyManager.State.STARTING) {
+                                AetherProxyManager.awaitReady(20_000L)
                             }
-                            reportException(it)
-                        }.getOrNull()?.also { newVisitorData ->
-                            dataStore.edit { settings ->
-                                settings[VisitorDataKey] = newVisitorData
+                            YouTube.visitorData().onFailure {
+                                withContext(Dispatchers.Main) {
+                                    Toaster.show(this@App, "Failed to get visitorData.", LENGTH_SHORT)
+                                }
+                                reportException(it)
+                            }.getOrNull()?.also { newVisitorData ->
+                                dataStore.edit { settings ->
+                                    settings[VisitorDataKey] = newVisitorData
+                                }
                             }
                         }
+                }
+        }
+        // When Aether finishes connecting (at startup or toggled later), drop stale pooled
+        // connections and replace an IR-bound or missing visitorData with one from the tunnel's exit.
+        GlobalScope.launch(Dispatchers.IO) {
+            AetherProxyManager.state
+                .distinctUntilChanged()
+                .collect { aetherState ->
+                    if (aetherState == AetherProxyManager.State.CONNECTED) {
+                        YouTube.forgetIdleConnections()
+                        val currentVisitor = YouTube.visitorData
+                        if (currentVisitor.isNullOrBlank() || YouTubeRegion.countryOf(currentVisitor) == "IR") {
+                            YouTube.visitorData().getOrNull()?.let { fresh ->
+                                YouTube.visitorData = fresh
+                                dataStore.edit { settings ->
+                                    settings[VisitorDataKey] = fresh
+                                }
+                            }
+                        }
+                        YouTubeRegion.refresh(this@App)
+                    }
                 }
         }
         // Where YouTube sees this connection, asked only on a phone that points to a country where

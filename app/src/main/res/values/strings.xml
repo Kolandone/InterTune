@@ -325,6 +325,21 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="aether_reset_identity">Reset identity &amp; cache</string>
     <string name="aether_reset_identity_desc">Clear saved WARP keys, gateway history, and Tor/Psiphon cache</string>
     <string name="aether_reset_identity_done">Aether identity &amp; cache cleared</string>
+    <string name="aether_refresh_yt">Refresh YouTube session</string>
+    <string name="aether_refresh_yt_desc">Discard cached IR region token and reconnect YouTube through the tunnel</string>
+    <string name="aether_refresh_yt_done">YouTube session refreshed (%1$s)</string>
+    <string name="aether_refresh_yt_failed">Could not refresh YouTube session</string>
+    <string name="aether_ir_warning">⚠ Exit IP is Iran (IR) — YouTube Music blocks licensed songs &amp; Moods/Genres in IR. Switch to Gool / MiM / Psiphon.</string>
+    <string name="aether_grp_presets">Quick presets</string>
+    <string name="aether_preset_ytm_title">YouTube Music (Non-IR — Recommended)</string>
+    <string name="aether_preset_ytm_desc">Gool double-hop (WG over MASQUE HTTP/3) excluding IR exits</string>
+    <string name="aether_preset_dpi_title">Strict Iran DPI bypass</string>
+    <string name="aether_preset_dpi_desc">Gool over HTTP/2 + TLS ClientHello fragment + GFW noize (Non-IR)</string>
+    <string name="aether_preset_fast_title">Fast single-hop (MASQUE)</string>
+    <string name="aether_preset_fast_desc">MASQUE HTTP/3 Turbo (fastest, may exit via local IR edge)</string>
+    <string name="aether_preset_psiphon_title">Psiphon CDN Fronting (DE)</string>
+    <string name="aether_preset_psiphon_desc">Psiphon Meek over CDN with German exit when WARP is blocked</string>
+    <string name="aether_preset_applied">Preset applied</string>
 
     <string name="player_and_audio">Player and audio</string>
     <string name="audio_quality">Audio quality</string>

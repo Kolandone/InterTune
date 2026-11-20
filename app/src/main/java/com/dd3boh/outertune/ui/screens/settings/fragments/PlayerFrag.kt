@@ -688,7 +688,7 @@ private const val HEAD_TRACKING_WIKI = com.dd3boh.outertune.constants.WikiLinks.
 
 /** Pre-filled so a report arrives with the one thing that actually identifies the problem. */
 private const val HEAD_TRACKING_ISSUE =
-    "https://github.com/ItzSkyeYT/InterTune/issues/new?labels=head+tracking&title=Head+tracking+not+detected&body=" +
+    "https://github.com/Kolandone/InterTune/issues/new?labels=head+tracking&title=Head+tracking+not+detected&body=" +
         "Headphones%3A%20%0APhone%3A%20%0AAndroid%20version%3A%20%0A%0A" +
         "Output%20of%20%60adb%20shell%20dumpsys%20sensorservice%20%7C%20grep%20head_tracker%60%3A%0A"
 

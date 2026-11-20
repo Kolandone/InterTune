@@ -20,9 +20,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -292,6 +294,19 @@ object AetherProxyManager {
         true
     } catch (_: Exception) {
         false
+    }
+
+    /**
+     * Suspends while Aether is in [State.STARTING] up to [timeoutMs] until it becomes ready
+     * or terminates. Returns `true` if connected, `false` otherwise.
+     */
+    suspend fun awaitReady(timeoutMs: Long = 20_000L): Boolean {
+        val current = _state.value
+        if (current == State.CONNECTED) return true
+        if (current != State.STARTING) return false
+        return withTimeoutOrNull(timeoutMs) {
+            _state.first { it != State.STARTING }
+        } == State.CONNECTED
     }
 
     private fun isPortReachable(host: String, port: Int): Boolean = try {

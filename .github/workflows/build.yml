@@ -5,9 +5,14 @@ on:
     branches:
       - canary
       - main
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - '**'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -73,24 +78,57 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleCoreDebug --stacktrace -DskipFormatKtlint
 
-      - name: Verify APK contains Aether binaries and extractNativeLibs=true
+      - name: Verify split APKs contain Aether binaries and extractNativeLibs=true
         run: |
           set -euo pipefail
-          APK=$(ls app/build/outputs/apk/core/debug/*.apk | head -n 1)
-          echo "Inspecting APK: $APK"
-          unzip -l "$APK" | grep -E "lib(aether|lyrebird|psiphon)\.so"
-          for abi in arm64-v8a armeabi-v7a x86_64; do
-            unzip -l "$APK" | grep -q "lib/$abi/libaether.so" || { echo "MISSING lib/$abi/libaether.so"; exit 1; }
-            unzip -l "$APK" | grep -q "lib/$abi/liblyrebird.so" || { echo "MISSING lib/$abi/liblyrebird.so"; exit 1; }
-            unzip -l "$APK" | grep -q "lib/$abi/libpsiphon.so" || { echo "MISSING lib/$abi/libpsiphon.so"; exit 1; }
-          done
+          ls -lh app/build/outputs/apk/core/debug/*.apk
           AAPT2=$(find /usr/local/lib/android/sdk/build-tools -name aapt2 | sort -V | tail -n 1)
-          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml | grep -i extractNativeLibs
-          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml | grep -Eq "extractNativeLibs.*(=true|0xffffffff)" || { echo "ERROR: extractNativeLibs is NOT true!"; exit 1; }
-          echo "ALL CHECKS PASSED!"
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            APK=$(ls app/build/outputs/apk/core/debug/*-${abi}-*.apk | head -n 1)
+            echo "Inspecting split APK for $abi: $APK"
+            ls -lh "$APK"
+            unzip -l "$APK" | grep -E "lib/.*\.so"
+            unzip -l "$APK" | grep -q "lib/$abi/libaether.so" || { echo "MISSING lib/$abi/libaether.so in $APK"; exit 1; }
+            unzip -l "$APK" | grep -q "lib/$abi/liblyrebird.so" || { echo "MISSING lib/$abi/liblyrebird.so in $APK"; exit 1; }
+            unzip -l "$APK" | grep -q "lib/$abi/libpsiphon.so" || { echo "MISSING lib/$abi/libpsiphon.so in $APK"; exit 1; }
+            for other in arm64-v8a armeabi-v7a x86_64; do
+              if [ "$other" != "$abi" ]; then
+                if unzip -l "$APK" | grep -q "lib/$other/libaether.so"; then
+                  echo "ERROR: $APK unexpectedly contains lib/$other/libaether.so (ABI split failed)"
+                  exit 1
+                fi
+              fi
+            done
+            "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml | grep -i extractNativeLibs
+            "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml | grep -Eq "extractNativeLibs.*(=true|0xffffffff)" || { echo "ERROR: extractNativeLibs is NOT true in $APK!"; exit 1; }
+          done
+          echo "ALL SPLIT APK CHECKS PASSED!"
 
-      - name: Upload APK
+      - name: Upload arm64-v8a APK
         uses: actions/upload-artifact@v4
         with:
-          name: InterTune-Aether-debug
-          path: app/build/outputs/apk/core/debug/*.apk
+          name: InterTune-Aether-arm64-v8a
+          path: app/build/outputs/apk/core/debug/*-arm64-v8a-*.apk
+
+      - name: Upload armeabi-v7a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: InterTune-Aether-armeabi-v7a
+          path: app/build/outputs/apk/core/debug/*-armeabi-v7a-*.apk
+
+      - name: Upload x86_64 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: InterTune-Aether-x86_64
+          path: app/build/outputs/apk/core/debug/*-x86_64-*.apk
+
+      - name: Publish GitHub Release on tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release create "$TAG" app/build/outputs/apk/core/debug/*.apk \
+            --title "InterTune Aether $TAG" \
+            --notes "Built-in Aether v2.4.0 censorship circumvention (arm64-v8a / armeabi-v7a / x86_64 split APKs)." \
+            || gh release upload "$TAG" app/build/outputs/apk/core/debug/*.apk --clobber

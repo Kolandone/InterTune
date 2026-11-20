@@ -21,15 +21,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VpnLock
+import androidx.datastore.preferences.core.edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -82,6 +85,7 @@ import com.dd3boh.outertune.constants.AetherTeamKey
 import com.dd3boh.outertune.constants.AetherTorBridgesModeKey
 import com.dd3boh.outertune.constants.AetherTorCustomBridgeKey
 import com.dd3boh.outertune.constants.AetherUpstreamKey
+import com.dd3boh.outertune.constants.VisitorDataKey
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.EditTextPreference
 import com.dd3boh.outertune.ui.component.FloatingTopBar
@@ -91,10 +95,15 @@ import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SettingsClickToReveal
 import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.dialog.InfoLabel
+import com.dd3boh.outertune.utils.YouTubeRegion
 import com.dd3boh.outertune.utils.aether.AetherConfig
 import com.dd3boh.outertune.utils.aether.AetherProxyManager
+import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.rememberPreference
+import com.zionhuang.innertube.YouTube
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,7 +115,7 @@ fun AetherSettings(
     val coroutineScope = rememberCoroutineScope()
 
     val (enabled, onEnabledChange) = rememberPreference(AetherProxyEnabledKey, false)
-    val (protocol, onProtocolChange) = rememberPreference(AetherProtocolKey, "masque")
+    val (protocol, onProtocolChange) = rememberPreference(AetherProtocolKey, "gool")
     val (masqueTransport, onMasqueTransportChange) = rememberPreference(AetherMasqueTransportKey, "h3")
     val (chainMode, onChainModeChange) = rememberPreference(AetherChainModeKey, "none")
     val (scanMode, onScanModeChange) = rememberPreference(AetherScanModeKey, "balanced")
@@ -178,9 +187,50 @@ fun AetherSettings(
     val activePort by AetherProxyManager.activePort.collectAsState()
     val logs by AetherProxyManager.logs.collectAsState()
 
+    val irWarningText = stringResource(R.string.aether_ir_warning)
+    val refreshFailedText = stringResource(R.string.aether_refresh_yt_failed)
     var showLogsDialog by remember { mutableStateOf(false) }
     var testResultText by remember { mutableStateOf<String?>(null) }
     var isTesting by remember { mutableStateOf(false) }
+    var isRefreshingYt by remember { mutableStateOf(false) }
+
+    fun applyPreset(
+        pProtocol: String,
+        pTransport: String = "h3",
+        pChain: String = "none",
+        pScan: String = "balanced",
+        pNoize: String = "default",
+        pFragment: Boolean = false,
+        pExitLoc: String = "",
+        pPsiphonMode: String = psiphonMode,
+        pPsiphonRegion: String = psiphonRegion,
+    ) {
+        onProtocolChange(pProtocol)
+        onMasqueTransportChange(pTransport)
+        onChainModeChange(pChain)
+        onScanModeChange(pScan)
+        onNoizeChange(pNoize)
+        onFragmentChange(pFragment)
+        onExitLocChange(pExitLoc)
+        onPsiphonModeChange(pPsiphonMode)
+        onPsiphonRegionChange(pPsiphonRegion)
+        testResultText = null
+        val updated = currentConfig.copy(
+            protocol = pProtocol,
+            masqueTransport = pTransport,
+            chainMode = pChain,
+            scanMode = pScan,
+            noize = pNoize,
+            fragment = pFragment,
+            exitLoc = pExitLoc,
+            psiphonMode = pPsiphonMode,
+            psiphonRegion = pPsiphonRegion,
+        )
+        Toast.makeText(context, R.string.aether_preset_applied, Toast.LENGTH_SHORT).show()
+        if (enabled) {
+            AetherProxyManager.start(context, updated, forceRestart = true)
+        }
+    }
 
     if (showLogsDialog) {
         AlertDialog(
@@ -263,7 +313,7 @@ fun AetherSettings(
             testResultText?.let { result ->
                 InfoLabel(
                     text = result,
-                    isError = result.startsWith("Error") || result.startsWith("Failed")
+                    isError = result.startsWith("Error") || result.startsWith("Failed") || result.contains("⚠")
                 )
             }
 
@@ -292,13 +342,47 @@ fun AetherSettings(
                                 val res = AetherProxyManager.testConnection(activePort)
                                 testResultText = res.fold(
                                     onSuccess = { r ->
-                                        "OK • IP: ${r.ip} • Country: ${r.country} • WARP: ${r.warp} • ${r.latencyMs} ms"
+                                        val base = "OK • IP: ${r.ip} • Country: ${r.country} • WARP: ${r.warp} • ${r.latencyMs} ms"
+                                        if (r.country.equals("IR", ignoreCase = true)) "$base\n$irWarningText" else base
                                     },
                                     onFailure = { e ->
                                         "Failed: ${e.localizedMessage ?: e.javaClass.simpleName}"
                                     }
                                 )
                                 isTesting = false
+                            }
+                        }
+                    )
+
+                    PreferenceEntry(
+                        title = { Text(stringResource(R.string.aether_refresh_yt)) },
+                        description = stringResource(R.string.aether_refresh_yt_desc),
+                        icon = { Icon(Icons.Rounded.Sync, null) },
+                        isEnabled = state == AetherProxyManager.State.CONNECTED && !isRefreshingYt,
+                        onClick = {
+                            isRefreshingYt = true
+                            coroutineScope.launch {
+                                val fresh = withContext(Dispatchers.IO) {
+                                    YouTube.forgetIdleConnections()
+                                    val token = YouTube.visitorData().getOrNull()
+                                    if (token != null) {
+                                        YouTube.visitorData = token
+                                        context.dataStore.edit { it[VisitorDataKey] = token }
+                                    }
+                                    YouTubeRegion.refresh(context)
+                                    token
+                                }
+                                if (fresh != null) {
+                                    val cc = YouTubeRegion.countryOf(fresh) ?: "OK"
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.aether_refresh_yt_done, cc),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    Toast.makeText(context, refreshFailedText, Toast.LENGTH_SHORT).show()
+                                }
+                                isRefreshingYt = false
                             }
                         }
                     )
@@ -310,6 +394,74 @@ fun AetherSettings(
                 description = stringResource(R.string.aether_logs_desc, logs.size),
                 icon = { Icon(Icons.Rounded.Terminal, null) },
                 onClick = { showLogsDialog = true }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 1.5 Quick Presets
+        PreferenceGroupTitle(title = stringResource(R.string.aether_grp_presets))
+        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.aether_preset_ytm_title)) },
+                description = stringResource(R.string.aether_preset_ytm_desc),
+                icon = { Icon(Icons.Rounded.AutoAwesome, null) },
+                onClick = {
+                    applyPreset(
+                        pProtocol = "gool",
+                        pTransport = "h3",
+                        pChain = "none",
+                        pScan = "balanced",
+                        pNoize = "default",
+                        pFragment = false,
+                        pExitLoc = "!IR",
+                    )
+                }
+            )
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.aether_preset_dpi_title)) },
+                description = stringResource(R.string.aether_preset_dpi_desc),
+                icon = { Icon(Icons.Rounded.Security, null) },
+                onClick = {
+                    applyPreset(
+                        pProtocol = "gool",
+                        pTransport = "h2",
+                        pChain = "none",
+                        pScan = "balanced",
+                        pNoize = "gfw",
+                        pFragment = true,
+                        pExitLoc = "!IR",
+                    )
+                }
+            )
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.aether_preset_fast_title)) },
+                description = stringResource(R.string.aether_preset_fast_desc),
+                icon = { Icon(Icons.Rounded.Speed, null) },
+                onClick = {
+                    applyPreset(
+                        pProtocol = "masque",
+                        pTransport = "h3",
+                        pChain = "none",
+                        pScan = "turbo",
+                        pNoize = "default",
+                        pFragment = false,
+                        pExitLoc = "",
+                    )
+                }
+            )
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.aether_preset_psiphon_title)) },
+                description = stringResource(R.string.aether_preset_psiphon_desc),
+                icon = { Icon(Icons.Rounded.Public, null) },
+                onClick = {
+                    applyPreset(
+                        pProtocol = "psiphon-only",
+                        pPsiphonMode = "cdn",
+                        pPsiphonRegion = "DE",
+                        pExitLoc = "",
+                    )
+                }
             )
         }
 
@@ -776,6 +928,10 @@ fun AetherSettings(
                     icon = { Icon(Icons.Rounded.DeleteSweep, null) },
                     onClick = {
                         AetherProxyManager.resetIdentity(context)
+                        coroutineScope.launch(Dispatchers.IO) {
+                            context.dataStore.edit { it.remove(VisitorDataKey) }
+                            YouTube.visitorData = null
+                        }
                         Toast.makeText(context, R.string.aether_reset_identity_done, Toast.LENGTH_SHORT).show()
                         if (enabled) {
                             AetherProxyManager.start(context, currentConfig, forceRestart = true)

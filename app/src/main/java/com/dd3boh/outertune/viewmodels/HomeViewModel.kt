@@ -86,6 +86,7 @@ import com.dd3boh.outertune.utils.RecentlyShown
 import com.dd3boh.outertune.utils.YouTubeTrouble
 import com.dd3boh.outertune.utils.reportException
 import com.dd3boh.outertune.utils.syncCoroutine
+import com.dd3boh.outertune.utils.aether.AetherProxyManager
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.PlaylistItem
 import com.zionhuang.innertube.models.WatchEndpoint
@@ -1276,6 +1277,10 @@ class HomeViewModel @Inject constructor(
         // Opening the app stops here: the row built last time is restored rather than fetched
         // again, so the feed is the one that was left behind rather than a new one that arrives a
         // few seconds later and moves everything.
+        if (!localOnly && AetherProxyManager.state.value == AetherProxyManager.State.STARTING) {
+            AetherProxyManager.awaitReady(20_000L)
+        }
+
         if (localOnly || (!force && Throttle.isBlocked)) {
             if (!localOnly) Log.d("HomeViewModel", "Skipping remote home load, backing off")
             noteShown()
@@ -1680,6 +1685,30 @@ class HomeViewModel @Inject constructor(
         }
         viewModelScope.launch(syncCoroutine) {
             syncUtils.tryAutoSync()
+        }
+        viewModelScope.launch {
+            var sawStoppedOrError =
+                AetherProxyManager.state.value == AetherProxyManager.State.STOPPED ||
+                    AetherProxyManager.state.value == AetherProxyManager.State.ERROR
+            AetherProxyManager.state
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { aetherState ->
+                    if (aetherState == AetherProxyManager.State.STOPPED ||
+                        aetherState == AetherProxyManager.State.ERROR
+                    ) {
+                        sawStoppedOrError = true
+                    } else if (aetherState == AetherProxyManager.State.CONNECTED) {
+                        // Give an active load's awaitReady() wakeup a moment so we don't queue a duplicate pass
+                        kotlinx.coroutines.delay(150)
+                        if (!isRefreshing.value &&
+                            (sawStoppedOrError || (!opensAsLeft() && (explorePage.value == null || homePagePool == null)))
+                        ) {
+                            sawStoppedOrError = false
+                            refresh(force = true, localOnly = false)
+                        }
+                    }
+                }
         }
 
         // Signing in changes what this whole page should show, and nothing recreated this view

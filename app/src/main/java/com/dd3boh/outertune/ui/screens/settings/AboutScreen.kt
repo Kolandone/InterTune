@@ -183,14 +183,14 @@ fun AboutScreen(
 
         Spacer(Modifier.height(4.dp))
 
-        if (BuiltInKeys.official) Row(
+        Row(
             horizontalArrangement = Arrangement.Center,
             modifier = Modifier.padding(vertical = 16.dp)
         ) {
             IconLabelButton(
                 text = "GitHub",
                 painter = painterResource(R.drawable.github),
-                onClick = { uriHandler.openUri("https://github.com/ItzSkyeYT/InterTune") },
+                onClick = { uriHandler.openUri(Links.REPO) },
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
 

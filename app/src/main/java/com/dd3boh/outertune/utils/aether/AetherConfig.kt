@@ -43,7 +43,7 @@ import java.io.File
  * and custom peer option from CluvexStudio/Aether.
  */
 data class AetherConfig(
-    val protocol: String = "masque",               // masque | wg | gool | gool-classic | mim | tor-only | psiphon-only
+    val protocol: String = "gool",                 // masque | wg | gool | gool-classic | mim | tor-only | psiphon-only
     val masqueTransport: String = "h3",            // h3 | h2
     val chainMode: String = "none",                // none | tor | tor-reverse | psiphon | psiphon-reverse
     val scanMode: String = "balanced",             // turbo | balanced | thorough | verified | ironclad
@@ -312,7 +312,7 @@ data class AetherConfig(
 
     companion object {
         fun fromPreferences(prefs: Preferences): AetherConfig = AetherConfig(
-            protocol = prefs[AetherProtocolKey] ?: "masque",
+            protocol = prefs[AetherProtocolKey] ?: "gool",
             masqueTransport = prefs[AetherMasqueTransportKey] ?: "h3",
             chainMode = prefs[AetherChainModeKey] ?: "none",
             scanMode = prefs[AetherScanModeKey] ?: "balanced",

@@ -31,7 +31,6 @@ private class NewPipeDownloaderImpl(proxy: Proxy?, cacheDir: File?) : Downloader
     // for good; one that stops is ended by the 6 s read limit, and songs wait for the lock 8 s
     // at most. The app's RouteTimes holds the same numbers.
     private val client = OkHttpClient.Builder()
-        .proxy(proxy)
         .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
         .callTimeout(3, java.util.concurrent.TimeUnit.MINUTES)

@@ -7,6 +7,7 @@
 package com.dd3boh.outertune.utils
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import androidx.datastore.preferences.core.edit
 import com.dd3boh.outertune.BuildConfig
@@ -106,8 +107,6 @@ class UpdateChecker @Inject constructor(
             _available.value = fake
             return@withContext fake
         }
-        // A fork never asks InterTune's releases: they are not its updates (FORKS.md).
-        if (!BuiltInKeys.official) return@withContext null
         val store = context.dataStore
         if (!force && !store.get(UpdateCheckEnabledKey, false)) return@withContext null
         // Offline means the check could not be made, not that there is no update: show an update
@@ -225,7 +224,7 @@ class UpdateChecker @Inject constructor(
         return Update(
             versionCode = BuildConfig.VERSION_CODE + 1,
             versionName = "${BuildConfig.VERSION_NAME}-test",
-            releaseUrl = "https://github.com/ItzSkyeYT/InterTune/releases",
+            releaseUrl = "https://github.com/Kolandone/InterTune/releases",
             downloadUrl = "",
             sizeBytes = bytes,
             changelog = "A test update from the fake-update file. Installing it puts the apk in the cache back over this build.",
@@ -260,35 +259,59 @@ class UpdateChecker @Inject constructor(
      * human string ("v0.10.1-intertune.8", "v0.10.2") that does not sort or compare. The build
      * writes the code into the filename, so it is the one number both sides agree on.
      */
+    private data class MatchedAsset(
+        val code: Int,
+        val buildType: String,
+        val name: String,
+        val url: String,
+        val size: Long,
+    )
+
     private fun parse(json: String): Update? {
         val release = JSONObject(json)
         if (release.optBoolean("draft") || release.optBoolean("prerelease")) return null
 
-        // Keep the asset itself, not just its version. The apk url and size are what let the app
-        // download and install the update rather than sending the user to a browser.
+        // Keep the asset itself, not just its version. Pick the highest versionCode and match
+        // the device's primary supported ABI when per-ABI split APKs are published.
         val assets = release.optJSONArray("assets") ?: return null
-        var code = -1
-        var downloadUrl = ""
-        var size = 0L
+        val candidates = mutableListOf<MatchedAsset>()
         for (i in 0 until assets.length()) {
             val asset = assets.getJSONObject(i)
             val name = asset.optString("name")
             val match = ASSET_VERSION_CODE.find(name) ?: continue
-            val assetCode = match.groupValues[1].toIntOrNull() ?: continue
-            if (assetCode > code) {
-                code = assetCode
-                downloadUrl = asset.optString("browser_download_url")
-                size = asset.optLong("size", 0L)
-            }
+            val buildType = match.groupValues[1]
+            val assetCode = match.groupValues[2].toIntOrNull() ?: continue
+            val url = asset.optString("browser_download_url")
+            if (url.isEmpty()) continue
+            candidates += MatchedAsset(
+                code = assetCode,
+                buildType = buildType,
+                name = name,
+                url = url,
+                size = asset.optLong("size", 0L),
+            )
         }
-        if (code < 0 || downloadUrl.isEmpty()) return null
+        if (candidates.isEmpty()) return null
+
+        val maxCode = candidates.maxOf { it.code }
+        val atMax = candidates.filter { it.code == maxCode }
+        val sameBuildType = atMax.filter { it.buildType == BuildConfig.BUILD_TYPE }.ifEmpty { atMax }
+
+        val abiAsset = Build.SUPPORTED_ABIS.firstNotNullOfOrNull { abi ->
+            sameBuildType.firstOrNull { it.name.contains("-$abi-") || it.name.contains("-$abi.") }
+        } ?: run {
+            val knownAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+            sameBuildType.firstOrNull { it.name.contains("universal", ignoreCase = true) }
+                ?: sameBuildType.firstOrNull { asset -> knownAbis.none { asset.name.contains(it) } }
+                ?: sameBuildType.first()
+        }
 
         return Update(
-            versionCode = code,
+            versionCode = abiAsset.code,
             versionName = release.optString("tag_name").removePrefix("v"),
             releaseUrl = release.optString("html_url"),
-            downloadUrl = downloadUrl,
-            sizeBytes = size,
+            downloadUrl = abiAsset.url,
+            sizeBytes = abiAsset.size,
             changelog = release.optString("body"),
         )
     }
@@ -297,10 +320,10 @@ class UpdateChecker @Inject constructor(
         private const val TAG = "UpdateChecker"
 
         private const val RELEASES_URL =
-            "https://api.github.com/repos/ItzSkyeYT/InterTune/releases/latest"
+            "https://api.github.com/repos/Kolandone/InterTune/releases/latest"
 
-        /** `InterTune-0.10.2-core-release-79.apk` -> 79 */
-        private val ASSET_VERSION_CODE = Regex("""-release-(\d+)\.apk$""")
+        /** `InterTune-0.12.11-aether.2-core-arm64-v8a-debug-104.apk` -> 104 */
+        private val ASSET_VERSION_CODE = Regex("""-(release|debug)-(\d+)\.apk$""")
 
         /**
          * Two minutes.

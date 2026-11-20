@@ -52,8 +52,8 @@ android {
         applicationId = "dev.skye.intertune"
         minSdk = 24
         targetSdk = 36
-        versionCode = 103
-        versionName = "0.12.11"
+        versionCode = 104
+        versionName = "0.12.11-aether.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Obfuscated, not encrypted, and the difference matters. Anything the app can read, so
@@ -190,16 +190,15 @@ android {
         buildConfig = true
     }
 
-// build variants and stuff
-//    splits {
-//        abi {
-//            isEnable = true
-//            reset()
-//
-//            include("x86_64", "x86", "armeabi-v7a", "arm64-v8a")
-//            isUniversalApk = true
-//        }
-//    }
+// Per-ABI split APKs keep each download ~40 MB instead of packaging all 3 native engines into one universal APK.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a", "x86_64")
+            isUniversalApk = false
+        }
+    }
 
     flavorDimensions.add("abi")
 

@@ -1001,7 +1001,7 @@ fun SetupWizard(
                                         IconLabelButton(
                                             text = "GitHub",
                                             icon = Icons.Rounded.Code,
-                                            onClick = { uriHandler.openUri("https://github.com/ItzSkyeYT/InterTune") },
+                                            onClick = { uriHandler.openUri(com.dd3boh.outertune.constants.Links.REPO) },
                                             modifier = Modifier.padding(horizontal = 8.dp)
                                         )
 
