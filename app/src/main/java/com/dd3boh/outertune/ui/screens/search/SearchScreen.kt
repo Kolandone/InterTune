@@ -20,7 +20,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.ui.graphics.Color
+import com.dd3boh.outertune.ui.dialog.DonateDialog
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -278,7 +281,24 @@ fun SearchBarContainer(
                         )
                     }
                 } else {
+                    var showDonateDialog by remember { mutableStateOf(false) }
+                    if (showDonateDialog) {
+                        DonateDialog(onDismiss = { showDonateDialog = false })
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .clickable { showDonateDialog = true }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Favorite,
+                                contentDescription = stringResource(R.string.donate_title),
+                                tint = Color(0xFFE53935)
+                            )
+                        }
                         // Beside settings rather than inside a menu. Identifying what is playing
                         // in the room is something people reach for while the song is still on,
                         // and a thing you have to go and find is a thing you find too late.

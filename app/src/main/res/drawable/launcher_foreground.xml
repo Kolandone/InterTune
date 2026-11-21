@@ -6,30 +6,32 @@
     <group
         android:pivotX="54"
         android:pivotY="54"
-        android:scaleX="0.78"
-        android:scaleY="0.78">
+        android:scaleX="0.82"
+        android:scaleY="0.82">
+        <!-- Stylized rounded play/disc badge -->
         <path
-            android:pathData="M34,26 L34,82 L86,54 Z"
-            android:fillColor="#ffffff"
-            android:strokeColor="#ffffff"
-            android:strokeWidth="15"
+            android:pathData="M24,22 C24,17.58 27.58,14 32,14 L76,14 C85.94,14 94,22.06 94,32 L94,76 C94,85.94 85.94,94 76,94 L32,94 C27.58,94 24,90.42 24,86 Z"
+            android:fillColor="#6C4CF5" />
+        <path
+            android:pathData="M24,54 L94,24 L94,76 C94,85.94 85.94,94 76,94 L32,94 C27.58,94 24,90.42 24,86 Z"
+            android:fillColor="#FF4F79"
+            android:fillAlpha="0.85" />
+        <!-- Bold K letter -->
+        <path
+            android:pathData="M36,34 L36,74 M54,34 L38,54 L55,74"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="6.5"
+            android:strokeLineCap="round"
             android:strokeLineJoin="round" />
+        <!-- Bold L letter with music-note dot -->
         <path
-            android:pathData="M36,39 L45,39 L45,69 L36,69"
-            android:strokeColor="#ed5564"
-            android:strokeWidth="6"
+            android:pathData="M65,34 L65,71 L82,71"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="6.5"
             android:strokeLineCap="round"
             android:strokeLineJoin="round" />
         <path
-            android:pathData="M54,40 L54,68"
-            android:strokeColor="#ed5564"
-            android:strokeWidth="5"
-            android:strokeLineCap="round" />
-        <path
-            android:pathData="M70,46 L63,46 L63,62 L70,62"
-            android:strokeColor="#ed5564"
-            android:strokeWidth="6"
-            android:strokeLineCap="round"
-            android:strokeLineJoin="round" />
+            android:pathData="M80,38 m-4.5,0 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0"
+            android:fillColor="#FFFFFF" />
     </group>
 </vector>

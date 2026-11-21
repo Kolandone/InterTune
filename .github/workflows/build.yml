@@ -165,6 +165,6 @@ jobs:
             gh release upload "$TAG" app/build/outputs/apk/core/release/*.apk --clobber
           else
             gh release create "$TAG" app/build/outputs/apk/core/release/*.apk \
-              --title "InterTune Aether $TAG" \
-              --notes "Official Release build with built-in Aether v2.4.0 (default: MASQUE H2 -> Tor with Ironclad scan, no Psiphon) + built-in Xray Core (AndroidLibXrayLite v26.11.21 for custom VLESS/VMess/Trojan/SS/JSON configs). Persistent signing key for in-place updates."
+              --title "KLtune $TAG" \
+              --notes "KLtune $TAG — Built-in Aether + Tor (default: MASQUE H2 -> Tor, Ironclad), built-in Xray Core with subscriptions, real-delay ping & auto-select, English/Persian UI switcher, Donate & @kolandjs1 channel notifications."
           fi

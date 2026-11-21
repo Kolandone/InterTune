@@ -315,6 +315,9 @@ class App : Application(), SingletonImageLoader.Factory {
                     }
                 }
         }
+        // Start persistent 10-minute Telegram channel (@kolandjs1) update notifier
+        com.dd3boh.outertune.utils.TelegramChannelNotifier.start(this)
+
         // Where YouTube sees this connection, asked only on a phone that points to a country where
         // YouTube Music has no free plan (#68): see YouTubeRegion.
         GlobalScope.launch(Dispatchers.IO) { YouTubeRegion.refresh(this@App) }

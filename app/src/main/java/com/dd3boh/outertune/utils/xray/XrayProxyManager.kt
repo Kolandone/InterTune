@@ -103,7 +103,11 @@ object XrayProxyManager {
         fallbackProxy = proxy
     }
 
-    fun coreVersion(): String = runCatching { Libv2ray.checkVersionX() }.getOrDefault("Xray-core")
+    fun coreVersion(): String = runCatching {
+        val raw = Libv2ray.checkVersionX()
+        val ver = Regex("""v\d+\.\d+\.\d+""").find(raw)?.value
+        if (ver != null) "Xray $ver" else "Xray Core"
+    }.getOrDefault("Xray Core")
 
     @Synchronized
     fun start(

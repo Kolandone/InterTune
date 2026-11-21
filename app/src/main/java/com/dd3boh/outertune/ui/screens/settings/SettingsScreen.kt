@@ -38,8 +38,14 @@ import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Update
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material.icons.rounded.VpnLock
+import androidx.compose.ui.graphics.Color
+import com.dd3boh.outertune.ui.component.ListPreference
+import com.dd3boh.outertune.ui.dialog.DonateDialog
+import com.dd3boh.outertune.utils.AppLocaleHelper
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -210,6 +216,35 @@ fun SettingsScreen(
                 description = stringResource(R.string.settings_backup_description),
                 icon = { Icon(Icons.Rounded.Backup, null) },
                 onClick = { navController.navigate("settings/backup") }
+            )
+            val context = androidx.compose.ui.platform.LocalContext.current
+            var currentLang by remember { mutableStateOf(AppLocaleHelper.getLanguage(context)) }
+            var showDonate by remember { mutableStateOf(false) }
+            if (showDonate) {
+                DonateDialog(onDismiss = { showDonate = false })
+            }
+            ListPreference(
+                title = { Text(stringResource(R.string.app_language_title)) },
+                icon = { Icon(Icons.Rounded.Language, null) },
+                selectedValue = currentLang,
+                values = listOf("", "en", "fa"),
+                valueText = {
+                    when (it) {
+                        "en" -> "English"
+                        "fa" -> "فارسی"
+                        else -> stringResource(R.string.system_default)
+                    }
+                },
+                onValueSelected = { lang ->
+                    currentLang = lang
+                    AppLocaleHelper.setLanguage(context, lang)
+                }
+            )
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.donate_title)) },
+                description = stringResource(R.string.donate_settings_desc),
+                icon = { Icon(Icons.Rounded.Favorite, null, tint = Color(0xFFE53935)) },
+                onClick = { showDonate = true }
             )
             PreferenceEntry(
                 title = { Text(stringResource(R.string.aether_proxy_title)) },

@@ -469,6 +469,10 @@ private fun playFromWidget(
 class MainActivity : ComponentActivity() {
     val MAIN_TAG = "MainOtActivity"
 
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(com.dd3boh.outertune.utils.AppLocaleHelper.wrap(newBase))
+    }
+
     @Inject
     lateinit var database: MusicDatabase
 
