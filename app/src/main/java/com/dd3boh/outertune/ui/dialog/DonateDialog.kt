@@ -172,7 +172,7 @@ private fun WalletRow(label: String, address: String, onCopy: () -> Unit) {
             Spacer(modifier = Modifier.width(8.dp))
             Icon(
                 imageVector = Icons.Rounded.ContentCopy,
-                contentDescription = stringResource(R.string.copy),
+                contentDescription = stringResource(android.R.string.copy),
                 modifier = Modifier.size(18.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
