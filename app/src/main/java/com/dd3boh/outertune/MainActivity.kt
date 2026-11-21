@@ -1471,6 +1471,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     CompositionLocalProvider(
+                        LocalLayoutDirection provides (if (com.dd3boh.outertune.utils.AppLocaleHelper.isRtl(this@MainActivity)) LayoutDirection.Rtl else LayoutDirection.Ltr),
                         LocalDatabase provides database,
                         LocalContentColor provides contentColorFor(MaterialTheme.colorScheme.surface),
                         LocalMenuState provides menuState,

@@ -6,32 +6,41 @@
     <group
         android:pivotX="54"
         android:pivotY="54"
-        android:scaleX="0.82"
-        android:scaleY="0.82">
-        <!-- Stylized rounded play/disc badge -->
+        android:scaleX="0.84"
+        android:scaleY="0.84">
+        <!-- Modern obsidian dark-carbon rounded badge -->
         <path
-            android:pathData="M24,22 C24,17.58 27.58,14 32,14 L76,14 C85.94,14 94,22.06 94,32 L94,76 C94,85.94 85.94,94 76,94 L32,94 C27.58,94 24,90.42 24,86 Z"
-            android:fillColor="#6C4CF5" />
+            android:pathData="M22,22 C22,16.48 26.48,12 32,12 L76,12 C87.05,12 96,20.95 96,32 L96,76 C96,87.05 87.05,96 76,96 L32,96 C26.48,96 22,91.52 22,86 Z"
+            android:fillColor="#131318"
+            android:strokeColor="#E51928"
+            android:strokeWidth="3.2" />
+        <!-- Dynamic crimson red diagonal accent bar -->
         <path
-            android:pathData="M24,54 L94,24 L94,76 C94,85.94 85.94,94 76,94 L32,94 C27.58,94 24,90.42 24,86 Z"
-            android:fillColor="#FF4F79"
-            android:fillAlpha="0.85" />
-        <!-- Bold K letter -->
+            android:pathData="M24,80 L84,20 L94,20 L94,30 L34,90 L24,90 Z"
+            android:fillColor="#E51928"
+            android:fillAlpha="0.22" />
+        <!-- Crimson red top-right sound wave / play pulse -->
         <path
-            android:pathData="M36,34 L36,74 M54,34 L38,54 L55,74"
+            android:pathData="M75,30 L85,36 L75,42 Z"
+            android:fillColor="#FF1E2D" />
+        <!-- Sharp modern white K monogram -->
+        <path
+            android:pathData="M34,32 L34,76 M53,32 L36,54 L54,76"
             android:strokeColor="#FFFFFF"
-            android:strokeWidth="6.5"
+            android:strokeWidth="7.2"
             android:strokeLineCap="round"
             android:strokeLineJoin="round" />
-        <!-- Bold L letter with music-note dot -->
+        <!-- Sharp modern white L monogram with crimson red underline bar -->
         <path
-            android:pathData="M65,34 L65,71 L82,71"
+            android:pathData="M65,32 L65,73 L83,73"
             android:strokeColor="#FFFFFF"
-            android:strokeWidth="6.5"
+            android:strokeWidth="7.2"
             android:strokeLineCap="round"
             android:strokeLineJoin="round" />
         <path
-            android:pathData="M80,38 m-4.5,0 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0"
-            android:fillColor="#FFFFFF" />
+            android:pathData="M34,83 L83,83"
+            android:strokeColor="#FF1E2D"
+            android:strokeWidth="3.8"
+            android:strokeLineCap="round" />
     </group>
 </vector>

@@ -54,6 +54,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -65,10 +66,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.edit
@@ -233,18 +236,20 @@ fun XraySettings(
             title = { Text(stringResource(R.string.xray_logs_title)) },
             text = {
                 val logScroll = rememberScrollState()
-                SelectionContainer {
-                    Text(
-                        text = if (logs.isEmpty()) stringResource(R.string.aether_logs_empty)
-                        else logs.joinToString("\n"),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        lineHeight = 15.sp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 160.dp, max = 420.dp)
-                            .verticalScroll(logScroll)
-                    )
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    SelectionContainer {
+                        Text(
+                            text = if (logs.isEmpty()) stringResource(R.string.aether_logs_empty)
+                            else logs.joinToString("\n"),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 160.dp, max = 420.dp)
+                                .verticalScroll(logScroll)
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -633,13 +638,15 @@ fun XraySettings(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Text(
-                                text = "${profile.protocol} • ${profile.server}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                Text(
+                                    text = "${profile.protocol} • ${profile.server}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         val (delayText, delayColor) = when {
@@ -649,12 +656,14 @@ fun XraySettings(
                             profile.delayMs < 1000 -> "${profile.delayMs} ms" to Color(0xFFFB8C00)
                             else -> "${profile.delayMs} ms" to Color(0xFFE53935)
                         }
-                        Text(
-                            text = delayText,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = delayColor
-                        )
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                            Text(
+                                text = delayText,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = delayColor
+                            )
+                        }
                         IconButton(
                             onClick = { XrayProfileStore.deleteProfile(context, profile.id) },
                             modifier = Modifier.size(32.dp)
