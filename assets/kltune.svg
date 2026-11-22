@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 108 108" fill="none">
+  <rect width="108" height="108" rx="24" fill="#0A0A0D" />
+  <g transform="translate(54 54) scale(0.84) translate(-59 -54)">
+    <!-- Modern obsidian dark-carbon rounded badge -->
+    <path d="M22,22 C22,16.48 26.48,12 32,12 L76,12 C87.05,12 96,20.95 96,32 L96,76 C96,87.05 87.05,96 76,96 L32,96 C26.48,96 22,91.52 22,86 Z"
+          fill="#131318" stroke="#E51928" stroke-width="3.2" />
+    <!-- Dynamic crimson red diagonal accent bar -->
+    <path d="M24,80 L84,20 L94,20 L94,30 L34,90 L24,90 Z"
+          fill="#E51928" fill-opacity="0.22" />
+    <!-- Crimson red top-right play pulse -->
+    <path d="M75,30 L85,36 L75,42 Z" fill="#FF1E2D" />
+    <!-- Sharp modern white K monogram -->
+    <path d="M34,32 L34,76 M53,32 L36,54 L54,76"
+          stroke="#FFFFFF" stroke-width="7.2" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- Sharp modern white L monogram -->
+    <path d="M65,32 L65,73 L83,73"
+          stroke="#FFFFFF" stroke-width="7.2" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- Crimson red bottom accent bar -->
+    <path d="M34,83 L83,83"
+          stroke="#FF1E2D" stroke-width="3.8" stroke-linecap="round" />
+  </g>
+</svg>
