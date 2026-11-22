@@ -45,7 +45,7 @@ It preserves the complete InterTune experience—unified online/local playback, 
 - **Subscription manager:** import, update, and manage multiple subscription URLs (Base64 or plain URI lists)
 - **Real-delay testing & Auto-select:** measures concurrent end-to-end HTTP delay through Xray core, sorts servers by latency, and automatically connects to the fastest working server
 
-### App Experience & Localization
+### App Experience 
 - **English & Persian (RTL):** switch between System Default, English, and Persian right inside **Settings**, with full right-to-left layout support for Persian and clean LTR handling for technical values
 
 ---
