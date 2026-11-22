@@ -47,8 +47,6 @@ It preserves the complete InterTune experience—unified online/local playback, 
 
 ### App Experience & Localization
 - **English & Persian (RTL):** switch between System Default, English, and Persian right inside **Settings**, with full right-to-left layout support for Persian and clean LTR handling for technical values
-- **Channel notifications:** checks `@kolandjs1` every 10 minutes with a persistent timer and post history so new channel announcements arrive once with a direct link to Telegram
-- **In-app updates:** checks [Kolandone/InterTune Releases](https://github.com/Kolandone/InterTune/releases/latest) and matches your device's exact CPU architecture
 
 ---
 
